@@ -24,10 +24,10 @@ public final class ModelUtils {
         HardwareAssessment tiny = assessHardware(context, TINY);
         HardwareAssessment small = assessHardware(context, SMALL);
         HardwareAssessment medium = assessHardware(context, MEDIUM);
-        if (medium.canRun) return MEDIUM;
-        if (small.canRun) return SMALL;
         if (tiny.canRun) return TINY;
-        return TINY_EN;
+        if (small.canRun) return SMALL;
+        if (medium.canRun) return MEDIUM;
+        return TINY;
     }
 
     public static List<ModelSpec> bundledModelSpecs() {

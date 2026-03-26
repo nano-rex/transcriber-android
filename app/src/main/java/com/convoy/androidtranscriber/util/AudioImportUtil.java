@@ -17,11 +17,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public final class AudioImportUtil {
     private static final String TAG = "AudioImportUtil";
     private static final long TIMEOUT_US = 10000;
+    public static final int TRANSCRIBE_CHUNK_SECONDS = 300;
 
     private AudioImportUtil() {}
 
@@ -344,6 +347,56 @@ public final class AudioImportUtil {
         public ImportedAudio(String displayName, File wavFile) {
             this.displayName = displayName;
             this.wavFile = wavFile;
+        }
+    }
+
+    public static List<File> splitWavForTranscription(Context context, File wavFile) throws IOException {
+        List<File> chunks = new ArrayList<>();
+        float[] samples = WaveUtil.getSamples(wavFile.getAbsolutePath());
+        if (samples.length == 0) {
+            chunks.add(wavFile);
+            return chunks;
+        }
+
+        int maxSamplesPerChunk = 16000 * TRANSCRIBE_CHUNK_SECONDS;
+        if (samples.length <= maxSamplesPerChunk) {
+            chunks.add(wavFile);
+            return chunks;
+        }
+
+        File chunkDir = new File(context.getFilesDir(), "transcribe-chunks");
+        if (!chunkDir.exists()) chunkDir.mkdirs();
+        clearOldChunks(chunkDir);
+
+        String base = wavFile.getName();
+        if (base.toLowerCase(Locale.US).endsWith(".wav")) {
+            base = base.substring(0, base.length() - 4);
+        }
+
+        int chunkCount = (int) Math.ceil(samples.length / (double) maxSamplesPerChunk);
+        for (int i = 0; i < chunkCount; i++) {
+            int start = i * maxSamplesPerChunk;
+            int end = Math.min(samples.length, start + maxSamplesPerChunk);
+            int len = Math.max(0, end - start);
+            if (len <= 0) break;
+            float[] chunkSamples = new float[len];
+            System.arraycopy(samples, start, chunkSamples, 0, len);
+            File chunkFile = new File(chunkDir, base + ".part-" + String.format(Locale.US, "%02d", i + 1) + ".wav");
+            WaveUtil.createWaveFile(chunkFile.getAbsolutePath(), shortsToBytes(floatToPcm16(chunkSamples)), 16000, 1, 2);
+            chunks.add(chunkFile);
+        }
+
+        return chunks;
+    }
+
+    private static void clearOldChunks(File chunkDir) {
+        File[] files = chunkDir.listFiles((dir, name) -> name.toLowerCase(Locale.US).endsWith(".wav"));
+        if (files == null) return;
+        for (File file : files) {
+            if (file != null && file.exists()) {
+                // Best-effort cleanup of prior temporary chunk files.
+                file.delete();
+            }
         }
     }
 }

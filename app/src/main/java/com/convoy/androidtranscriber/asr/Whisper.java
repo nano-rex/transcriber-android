@@ -60,6 +60,27 @@ public class Whisper {
         new Thread(this::transcribeFile).start();
     }
 
+    public String transcribeBlocking(String wavFilePath) {
+        if (!inProgress.compareAndSet(false, true)) {
+            throw new IllegalStateException("Transcription already in progress");
+        }
+        try {
+            if (!whisperEngine.isInitialized() || wavFilePath == null) {
+                throw new IllegalStateException("Engine not initialized or file path not set");
+            }
+            File waveFile = new File(wavFilePath);
+            if (!waveFile.exists()) {
+                throw new IllegalStateException(MSG_FILE_NOT_FOUND);
+            }
+            sendUpdate(MSG_PROCESSING);
+            String result = whisperEngine.transcribeFile(wavFilePath);
+            sendUpdate(MSG_PROCESSING_DONE);
+            return result;
+        } finally {
+            inProgress.set(false);
+        }
+    }
+
     private void transcribeFile() {
         try {
             if (!whisperEngine.isInitialized() || wavFilePath == null) {

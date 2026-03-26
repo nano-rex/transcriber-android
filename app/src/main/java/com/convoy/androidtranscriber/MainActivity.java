@@ -167,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
         availableModels.clear();
         availableModels.addAll(ModelUtils.availableModels(this));
         if (availableModels.isEmpty()) {
-            availableModels.add(new ModelSpec(ModelUtils.TINY_EN, ModelUtils.TINY_EN, "models/whisper-tiny.en.tflite", true, false));
+            availableModels.add(new ModelSpec(ModelUtils.TINY, ModelUtils.TINY, "models/whisper-tiny.tflite", true, true));
         }
 
         List<String> labels = new ArrayList<>();
@@ -260,14 +260,55 @@ public class MainActivity extends AppCompatActivity {
                 File vocabFile = ensureVocabFile(selectedModel);
                 whisper.unloadModel();
                 whisper.loadModel(modelFile.getAbsolutePath(), vocabFile.getAbsolutePath(), selectedModel.multilingual);
-                whisper.setFilePath(currentImportedWav.getAbsolutePath());
+                List<File> wavParts = AudioImportUtil.splitWavForTranscription(this, currentImportedWav);
                 handler.post(transcriptionProgressUpdater);
-                whisper.start();
+                String result = transcribeWavParts(wavParts);
+                handler.removeCallbacks(transcriptionProgressUpdater);
+                long elapsed = System.currentTimeMillis() - startTimeMs;
+                handler.post(() -> {
+                    tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
+                    String safeResult = result == null ? "" : result.trim();
+                    String diarizedText = buildDiarizedText(safeResult);
+                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
+                    latestTranscript = safeResult;
+                    latestDiarized = diarizedText;
+                    latestSummary = summaryText;
+                    btnViewResults.setEnabled(true);
+                    writeOutputsIfPossible(safeResult, diarizedText);
+                    setStatusNormal();
+                    openResultsWindow();
+                });
             } catch (Exception e) {
+                handler.removeCallbacks(transcriptionProgressUpdater);
                 handler.post(this::setStatusWarning);
                 handler.post(() -> tvStatus.setText("Status: failed to start transcription - " + e.getMessage()));
             }
         }).start();
+    }
+
+    private String transcribeWavParts(List<File> wavParts) {
+        if (wavParts == null || wavParts.isEmpty()) {
+            return whisper.transcribeBlocking(currentImportedWav.getAbsolutePath());
+        }
+
+        StringBuilder merged = new StringBuilder();
+        for (int i = 0; i < wavParts.size(); i++) {
+            File part = wavParts.get(i);
+            int partIndex = i + 1;
+            int basePercent = (int) Math.round((i * 100.0) / wavParts.size());
+            handler.post(() -> tvStatus.setText(String.format(Locale.US,
+                    "Status: transcribing part %d/%d... %d%%",
+                    partIndex, wavParts.size(), Math.min(95, basePercent))));
+            String partText = whisper.transcribeBlocking(part.getAbsolutePath());
+            if (partText != null) {
+                partText = partText.trim();
+                if (!partText.isEmpty()) {
+                    if (merged.length() > 0) merged.append(' ');
+                    merged.append(partText);
+                }
+            }
+        }
+        return merged.toString();
     }
 
     private File ensureModelFile(ModelSpec spec) throws IOException {
@@ -403,7 +444,8 @@ public class MainActivity extends AppCompatActivity {
 
     private int estimateTranscriptionPercent(long elapsedMs) {
         if (currentImportedWav == null || selectedModel == null) return 5;
-        double durationSeconds = WaveUtil.getSamples(currentImportedWav.getAbsolutePath()).length / 16000.0;
+        int sampleCount = WaveUtil.getSamples(currentImportedWav.getAbsolutePath()).length;
+        double durationSeconds = sampleCount / 16000.0;
         double factor = estimatedRealtimeFactor(selectedModel.tierHint());
         long estimatedTotalMs = Math.max(6000L, Math.round(durationSeconds * factor * 1000.0));
         int percent = (int) Math.min(95, Math.max(1, (elapsedMs * 100) / estimatedTotalMs));
