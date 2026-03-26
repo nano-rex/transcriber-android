@@ -1,13 +1,16 @@
-# Android_Transcriber
+# Transcriber Android
 
-Android app version of the `Linux_Transcriber` flow, built in plain Java and designed to be buildable **without Android Studio**.
+Android app version of the `Transcriber Desktop` flow, built in plain Java and designed to be buildable without Android Studio.
 
 It keeps the same overall logic as the Linux project where practical:
 - bundled local Whisper models
 - local/offline transcription
+- local audio preprocessing/import to 16k mono WAV
 - simple model recommendation
-- transcript generation
+- timestamped transcript generation
+- diarized transcript output
 - overview + key points summary output
+- saved outputs page with search and delete
 
 ---
 
@@ -45,7 +48,10 @@ This project is now a **real Android app**, not a shell-only wrapper:
 - transcript display inside the app
 - diarized transcript display in app UI
 - overview + key points summary generation
-- save transcript, diarized transcript, and summary as app-local text outputs
+- save transcript, diarized transcript, summary, and metadata as app-local outputs
+- browse saved outputs inside the app
+- search saved outputs by filename
+- delete saved outputs from the app
 
 ### Current bundled model tiers
 - `tiny-en`
@@ -221,11 +227,13 @@ Current output types:
 - transcript text file (rough chunk timestamps)
 - diarized transcript text file (rough speaker labels)
 - summary text file
+- metadata json file
 
 Generated filenames follow the imported WAV base name:
 - `<name>.transcript.txt`
 - `<name>.diarized.txt`
 - `<name>.summary.txt`
+- `<name>.meta.json`
 
 ---
 
@@ -247,4 +255,4 @@ This project is intentionally aligned with a **no Android Studio** workflow simi
 /home/user/github/Building-Android-Apps-with-Java-No-Android-Studio-
 ```
 
-That reference is used for the command-line Android build style, while the actual app logic here follows the `Linux_Transcriber` project direction.
+That reference is used for the command-line Android build style, while the actual app logic here follows the `Transcriber Desktop` project direction.

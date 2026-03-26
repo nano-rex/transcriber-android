@@ -13,7 +13,7 @@
             android:id="@+id/tvTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Android Transcriber"
+            android:text="Transcriber Android"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -58,6 +58,13 @@
             android:layout_marginTop="12dp"
             android:text="Transcribe" />
 
+        <Button
+            android:id="@+id/btnSavedOutputs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Saved Outputs" />
+
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
@@ -81,7 +88,7 @@
             android:textIsSelectable="true" />
 
         <TextView
-            android:id="@+id/tvSummaryLabel"
+            android:id="@+id/tvDiarizedLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"

@@ -28,6 +28,7 @@ import com.convoy.androidtranscriber.util.WaveUtil;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -50,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private RecorderUtil.RecorderSession recorderSession;
     private boolean isRecording = false;
     private String recommendedTier;
+    private String selectedTier;
     private long startTimeMs;
 
     private final ActivityResultLauncher<String[]> pickMediaLauncher =
@@ -78,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnPickFile = findViewById(R.id.btnPickFile);
         Button btnRecord = findViewById(R.id.btnRecord);
         Button btnTranscribe = findViewById(R.id.btnTranscribe);
+        Button btnSavedOutputs = findViewById(R.id.btnSavedOutputs);
 
         whisper = new Whisper(this);
         whisper.setListener(new Whisper.WhisperListener() {
@@ -114,6 +117,7 @@ public class MainActivity extends AppCompatActivity {
         btnPickFile.setOnClickListener(v -> pickMediaLauncher.launch(new String[]{"audio/*", "video/*"}));
         btnRecord.setOnClickListener(v -> toggleRecording(btnRecord));
         btnTranscribe.setOnClickListener(v -> startTranscription());
+        btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
     }
 
     private void setupModelSpinner(String recommendedTier) {
@@ -190,6 +194,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         String selectedTier = String.valueOf(spinnerModel.getSelectedItem());
+        this.selectedTier = selectedTier;
         startTimeMs = System.currentTimeMillis();
         tvTranscript.setText("");
         tvDiarized.setText("");
@@ -291,6 +296,7 @@ public class MainActivity extends AppCompatActivity {
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
             writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
             writeTextFile(new File(outputsDir, base + ".diarized.txt"), diarizedText == null ? "" : diarizedText);
+            writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length);
         } catch (Exception e) {
             tvStatus.setText("Status: transcript done, but failed to write outputs: " + e.getMessage());
         }
@@ -298,8 +304,24 @@ public class MainActivity extends AppCompatActivity {
 
     private void writeTextFile(File file, String content) throws IOException {
         try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
-            fos.write((content == null ? "" : content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            fos.write((content == null ? "" : content).getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private void writeMetadataFile(File file, String transcript, String diarizedText, int sampleCount) throws IOException {
+        double durationSeconds = sampleCount / 16000.0;
+        String json = "{\n"
+                + "  \"input\": \"" + escapeJson(currentImportedWav.getAbsolutePath()) + "\",\n"
+                + "  \"model\": \"" + escapeJson(selectedTier == null ? "" : selectedTier) + "\",\n"
+                + "  \"duration_seconds\": " + String.format(Locale.US, "%.2f", durationSeconds) + ",\n"
+                + "  \"transcript_chars\": " + (transcript == null ? 0 : transcript.length()) + ",\n"
+                + "  \"diarized_chars\": " + (diarizedText == null ? 0 : diarizedText.length()) + "\n"
+                + "}\n";
+        writeTextFile(file, json);
+    }
+
+    private static String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     @Override
