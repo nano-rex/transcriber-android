@@ -59,11 +59,17 @@ This project is now a **real Android app**, not a shell-only wrapper:
 ### Current bundled model tiers
 - `tiny-en`
 - `tiny`
+- `small` when `app/src/main/assets/models/whisper-small.tflite` is present locally
 
 Additional models:
 - import custom `.tflite` files from the app via `Manage Models`
 - English-only models should include `.en` in the filename
 - other imported models are treated as multilingual
+
+Offline note:
+- this repo can be prepared for zero-network use by placing local model files directly in the project before building
+- the Android build will automatically bundle `whisper-small.tflite` if it exists under `app/src/main/assets/models/`
+- `../transcriber-desktop/scripts/prepare_offline_models.sh` also stages `whisper-small.tflite` into this path automatically when a local source or configured URL is available
 
 ### Planned / not finished yet
 - stronger compatibility testing across more `.mp3`, `.m4a`, and `.mp4` files

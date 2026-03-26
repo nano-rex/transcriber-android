@@ -36,6 +36,7 @@ public final class ModelUtils {
         List<ModelSpec> specs = new ArrayList<>();
         specs.add(new ModelSpec(TINY_EN, "tiny-en", "models/whisper-tiny.en.tflite", true, false));
         specs.add(new ModelSpec(TINY, "tiny", "models/whisper-tiny.tflite", true, true));
+        specs.add(new ModelSpec(SMALL, "small", "models/whisper-small.tflite", true, true));
         return specs;
     }
 
