@@ -92,23 +92,58 @@ public final class RecorderUtil {
                 floatSamples[i] = pcm16[i] / 32768f;
             }
 
-            float peak = 0f;
             float previousIn = 0f;
             float previousOut = 0f;
             for (int i = 0; i < floatSamples.length; i++) {
                 float current = floatSamples[i];
                 float filtered = (float) (0.97 * (previousOut + current - previousIn));
                 floatSamples[i] = filtered;
-                peak = Math.max(peak, Math.abs(filtered));
                 previousIn = current;
                 previousOut = filtered;
             }
 
-            float gain = peak > 0f ? Math.min(8f, 0.92f / peak) : 1f;
+            floatSamples = applyAdaptiveGain(floatSamples);
             short[] out = new short[pcm16.length];
             for (int i = 0; i < floatSamples.length; i++) {
-                float sample = Math.max(-0.98f, Math.min(0.98f, floatSamples[i] * gain));
+                float sample = (float) Math.tanh(floatSamples[i] * 1.5f) / 1.05f;
+                sample = Math.max(-0.98f, Math.min(0.98f, sample));
                 out[i] = (short) (sample * 32767f);
+            }
+            return out;
+        }
+
+        private float[] applyAdaptiveGain(float[] samples) {
+            int window = 1600;
+            float[] out = new float[samples.length];
+            double avgAbs = 0.0;
+            for (float sample : samples) avgAbs += Math.abs(sample);
+            avgAbs = avgAbs / Math.max(1, samples.length);
+            double gate = Math.max(0.004, avgAbs * 0.55);
+
+            for (int start = 0; start < samples.length; start += window) {
+                int end = Math.min(samples.length, start + window);
+                double rms = 0.0;
+                for (int i = start; i < end; i++) rms += samples[i] * samples[i];
+                rms = Math.sqrt(rms / Math.max(1, end - start));
+
+                float gain;
+                if (rms < gate * 0.8) {
+                    gain = 1.1f;
+                } else if (rms < 0.025) {
+                    gain = 6.0f;
+                } else if (rms < 0.06) {
+                    gain = 3.5f;
+                } else if (rms < 0.12) {
+                    gain = 2.0f;
+                } else {
+                    gain = 1.1f;
+                }
+
+                for (int i = start; i < end; i++) {
+                    float sample = samples[i];
+                    if (Math.abs(sample) < gate) sample *= 0.45f;
+                    out[i] = sample * gain;
+                }
             }
             return out;
         }

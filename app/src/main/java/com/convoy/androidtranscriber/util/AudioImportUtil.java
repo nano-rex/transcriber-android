@@ -242,33 +242,61 @@ public final class AudioImportUtil {
             previousOutput = highPass;
         }
 
+        float[] leveled = applyAdaptiveSpeechGain(filtered);
+        return softLimit(leveled);
+    }
+
+    private static float[] applyAdaptiveSpeechGain(float[] input) {
+        int window = 1600;
+        float[] output = new float[input.length];
         double avgAbs = 0.0;
-        for (float sample : filtered) avgAbs += Math.abs(sample);
-        avgAbs = avgAbs / filtered.length;
-        double gate = Math.max(0.006, avgAbs * 0.8);
+        for (float sample : input) avgAbs += Math.abs(sample);
+        avgAbs = avgAbs / Math.max(1, input.length);
+        double gate = Math.max(0.004, avgAbs * 0.55);
 
+        for (int start = 0; start < input.length; start += window) {
+            int end = Math.min(input.length, start + window);
+            double rms = 0.0;
+            for (int i = start; i < end; i++) {
+                rms += input[i] * input[i];
+            }
+            rms = Math.sqrt(rms / Math.max(1, end - start));
+
+            float gain;
+            if (rms < gate * 0.8) {
+                gain = 1.1f;
+            } else if (rms < 0.025) {
+                gain = 6.5f;
+            } else if (rms < 0.06) {
+                gain = 3.8f;
+            } else if (rms < 0.12) {
+                gain = 2.2f;
+            } else {
+                gain = 1.2f;
+            }
+
+            for (int i = start; i < end; i++) {
+                float sample = input[i];
+                if (Math.abs(sample) < gate) {
+                    sample *= 0.45f;
+                }
+                output[i] = sample * gain;
+            }
+        }
+
+        return output;
+    }
+
+    private static float[] softLimit(float[] input) {
         float peak = 0f;
-        for (int i = 0; i < filtered.length; i++) {
-            float sample = filtered[i];
-            float abs = Math.abs(sample);
-            if (abs < gate) {
-                sample *= 0.15f;
-            } else if (abs < gate * 1.5) {
-                sample *= 0.55f;
-            }
-            filtered[i] = sample;
-            peak = Math.max(peak, Math.abs(sample));
+        for (float sample : input) peak = Math.max(peak, Math.abs(sample));
+        float preGain = peak > 0f ? Math.min(10f, 0.96f / peak) : 1f;
+        float[] output = new float[input.length];
+        for (int i = 0; i < input.length; i++) {
+            float sample = input[i] * preGain;
+            output[i] = (float) Math.tanh(sample * 1.4f) / 1.05f;
         }
-
-        if (peak > 0f) {
-            float gain = Math.min(8f, 0.92f / peak);
-            for (int i = 0; i < filtered.length; i++) {
-                float sample = filtered[i] * gain;
-                filtered[i] = Math.max(-0.98f, Math.min(0.98f, sample));
-            }
-        }
-
-        return filtered;
+        return output;
     }
 
     public static class ImportedAudio {
