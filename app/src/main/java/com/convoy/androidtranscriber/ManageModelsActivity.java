@@ -5,10 +5,13 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.convoy.androidtranscriber.util.GemmaSummaryRunner;
 import com.convoy.androidtranscriber.util.ModelUtils;
 
 import java.io.File;
@@ -28,9 +31,7 @@ public class ManageModelsActivity extends AppCompatActivity {
     private static final String MEDIUM_MODEL_URL =
             "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-medium-tflite/whisper-medium.tflite";
     private static final String MEDIUM_MODEL_FILE = "whisper-medium.tflite";
-    private static final String QWEN_1_5B_URL =
-            "https://github.com/nano-rex/transcriber-desktop/releases/download/desktop-model-qwen2.5-1.5b-instruct/Qwen2.5-1.5B-Instruct.tar.gz";
-    private static final String QWEN_1_5B_FILE = "Qwen2.5-1.5B-Instruct.tar.gz";
+    private static final String GEMMA_1B_TASK_FILE = "Gemma3-1B-IT_multi-prefill-seq_q4_ekv2048.task";
 
     private EditText etSearch;
     private TextView tvStatus;
@@ -39,6 +40,13 @@ public class ManageModelsActivity extends AppCompatActivity {
     private final List<ModelRow> allRows = new ArrayList<>();
     private final List<ModelRow> filteredRows = new ArrayList<>();
     private ModelListAdapter adapter;
+    private ModelRow pendingImportRow;
+
+    private final ActivityResultLauncher<String[]> importModelLauncher =
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+                if (uri == null || pendingImportRow == null) return;
+                importPickedModel(uri, pendingImportRow);
+            });
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -69,7 +77,7 @@ public class ManageModelsActivity extends AppCompatActivity {
         allRows.add(buildHostedRow("small", "ASR", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
         allRows.add(buildHostedRow("medium", "ASR", MEDIUM_MODEL_FILE, MEDIUM_MODEL_URL, true));
         allRows.add(buildSummaryRulesRow());
-        allRows.add(buildHostedSummaryArchiveRow("qwen-1.5b", QWEN_1_5B_FILE, QWEN_1_5B_URL));
+        allRows.add(buildGemmaSummaryRow());
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }
@@ -105,15 +113,15 @@ public class ManageModelsActivity extends AppCompatActivity {
                 "built-in", true, true, false, "Bundled", false, null, true);
     }
 
-    private ModelRow buildHostedSummaryArchiveRow(String displayName, String fileName, String url) {
-        File dir = new File(getFilesDir(), "summary-models");
-        if (!dir.exists()) dir.mkdirs();
-        File localFile = new File(dir, fileName);
+    private ModelRow buildGemmaSummaryRow() {
+        File localFile = GemmaSummaryRunner.defaultModelFile(this);
         boolean downloaded = localFile.exists();
-        String state = downloaded ? "Downloaded archive (not active on Android yet)" : "Not downloaded";
-        return new ModelRow(displayName, "Summary", state, true,
-                localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
-                true, url, false);
+        String state = downloaded
+                ? "Imported Gemma summary model"
+                : "Requires manual import after accepting Gemma license";
+        return new ModelRow("gemma-1b", "Summary", state, true,
+                localFile.getAbsolutePath(), downloaded, false, downloaded,
+                downloaded ? "Remove" : "Import", true, null, true);
     }
 
     private void handleRowAction(ModelRow row) {
@@ -125,9 +133,49 @@ public class ManageModelsActivity extends AppCompatActivity {
             confirmRemove(row);
             return;
         }
+        if ("Summary".equals(row.category) && row.downloadUrl == null && !row.available) {
+            pendingImportRow = row;
+            importModelLauncher.launch(new String[]{
+                    "application/octet-stream",
+                    "application/x-gtar",
+                    "*/*"
+            });
+            return;
+        }
         if (row.downloadUrl != null) {
             downloadModel(row);
         }
+    }
+
+    private void importPickedModel(android.net.Uri uri, ModelRow row) {
+        tvStatus.setText("Importing " + row.displayName + "...");
+        new Thread(() -> {
+            File target = new File(row.location);
+            File tmp = new File(target.getParentFile(), target.getName() + ".part");
+            try (InputStream in = getContentResolver().openInputStream(uri);
+                 OutputStream out = new java.io.FileOutputStream(tmp)) {
+                if (in == null) throw new IOException("Unable to open selected file");
+                byte[] buffer = new byte[16384];
+                for (int read; (read = in.read(buffer)) != -1; ) {
+                    out.write(buffer, 0, read);
+                }
+                if (target.exists() && !target.delete()) {
+                    throw new IOException("Unable to replace existing model");
+                }
+                if (!tmp.renameTo(target)) {
+                    throw new IOException("Unable to finalize imported model");
+                }
+                runOnUiThread(() -> {
+                    tvStatus.setText("Imported " + row.displayName);
+                    loadRows();
+                });
+            } catch (Exception e) {
+                if (tmp.exists()) tmp.delete();
+                runOnUiThread(() -> tvStatus.setText("Import failed: " + e.getMessage()));
+            } finally {
+                pendingImportRow = null;
+            }
+        }).start();
     }
 
     private void confirmRemove(ModelRow row) {

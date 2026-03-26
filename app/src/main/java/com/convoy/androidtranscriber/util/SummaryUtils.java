@@ -1,5 +1,7 @@
 package com.convoy.androidtranscriber.util;
 
+import android.content.Context;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +38,19 @@ public final class SummaryUtils {
 
     public static String buildSummaryReport(String text) {
         return "Overview:\n" + makeSummary(text) + "\n\nKey Points:\n" + makeKeyPoints(text);
+    }
+
+    public static String buildSummaryReport(Context context, String text) {
+        if (context != null && text != null && !text.trim().isEmpty() && GemmaSummaryRunner.isGemmaAvailable(context)) {
+            try {
+                String gemma = GemmaSummaryRunner.summarize(context, text);
+                if (gemma != null && !gemma.trim().isEmpty()) {
+                    return gemma.trim();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return buildSummaryReport(text);
     }
 
     private static void addIfFound(String text, List<String> points, String needle, String point) {

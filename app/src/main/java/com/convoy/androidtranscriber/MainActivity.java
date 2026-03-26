@@ -122,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
                 handler.post(() -> {
                     String safeResult = result == null ? "" : result.trim();
                     String diarizedText = buildDiarizedText(safeResult);
-                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
+                    String summaryText = SummaryUtils.buildSummaryReport(MainActivity.this, safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
                     latestSummary = summaryText;
@@ -269,7 +269,7 @@ public class MainActivity extends AppCompatActivity {
                     tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
                     String safeResult = result == null ? "" : result.trim();
                     String diarizedText = buildDiarizedText(safeResult);
-                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
+                    String summaryText = SummaryUtils.buildSummaryReport(this, safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
                     latestSummary = summaryText;
@@ -399,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
                 copyFileCompat(currentImportedWav, enhancedOutput);
             }
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
-            writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
+            writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(this, transcript));
             writeTextFile(new File(outputsDir, base + ".diarized.txt"), diarizedText == null ? "" : diarizedText);
             writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length);
         } catch (Exception e) {
