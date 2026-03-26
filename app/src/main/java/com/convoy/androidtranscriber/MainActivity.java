@@ -243,12 +243,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         new Thread(() -> {
+            List<File> wavParts = null;
             try {
                 File modelFile = ensureModelFile(selectedModel);
                 File vocabFile = ensureVocabFile(selectedModel);
                 whisper.unloadModel();
                 whisper.loadModel(modelFile.getAbsolutePath(), vocabFile.getAbsolutePath(), selectedModel.multilingual);
-                List<File> wavParts = AudioImportUtil.splitWavForTranscription(this, currentImportedWav);
+                wavParts = AudioImportUtil.splitWavForTranscription(this, currentImportedWav);
                 handler.post(transcriptionProgressUpdater);
                 String result = transcribeWavParts(wavParts);
                 handler.removeCallbacks(transcriptionProgressUpdater);
@@ -270,6 +271,8 @@ public class MainActivity extends AppCompatActivity {
                 handler.removeCallbacks(transcriptionProgressUpdater);
                 handler.post(this::setStatusWarning);
                 handler.post(() -> tvStatus.setText("Status: failed to start transcription - " + e.getMessage()));
+            } finally {
+                AudioImportUtil.cleanupSplitWavParts(currentImportedWav, wavParts);
             }
         }).start();
     }

@@ -428,6 +428,18 @@ public final class AudioImportUtil {
         return parts;
     }
 
+    public static void cleanupSplitWavParts(File originalWav, List<File> wavParts) {
+        if (wavParts == null || wavParts.isEmpty()) return;
+        for (File part : wavParts) {
+            if (part == null) continue;
+            if (originalWav != null && part.equals(originalWav)) continue;
+            try {
+                if (part.exists()) part.delete();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
     public static final class ImportedAudio {
         public final String displayName;
         public final File wavFile;
