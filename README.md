@@ -17,6 +17,7 @@ Android client for the `Transcriber Desktop` project. It is written in plain Jav
 - `app/src/main/assets/models/` bundled TFLite models
 - `app/src/main/assets/audio/` sample audio
 - `app/src/main/res/` layouts and resources
+- `scripts/` local helper scripts for staging bigger models
 - `releases/` built APK copies
 
 ## Build From Source
@@ -55,21 +56,22 @@ Bundled by default:
 - `whisper-tiny.tflite`
 
 Optional local test model:
-- `local-models/whisper-small.tflite`
+- shared source: `/home/user/github/transcriber-desktop/models/whisper-small.tflite`
 
-If you want to test the larger local model without committing it, keep it in:
+To stage it into Android assets for a local test build:
 
-```text
-local-models/whisper-small.tflite
+```bash
+cd /home/user/github/transcriber-android
+./scripts/stage_local_models.sh
 ```
 
-Then move or copy it into:
+That copies the shared desktop model into:
 
 ```text
 app/src/main/assets/models/whisper-small.tflite
 ```
 
-before building a test APK.
+The staged file is ignored by git, so it stays local only.
 
 The desktop setup script can stage this file locally:
 
