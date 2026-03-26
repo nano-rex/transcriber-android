@@ -164,7 +164,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
     private static String readFile(@Nullable File file) {
         if (file == null || !file.exists()) return "";
         try {
-            return Files.readString(file.toPath(), StandardCharsets.UTF_8).trim();
+            return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
         } catch (IOException e) {
             return "Failed to read file: " + e.getMessage();
         }

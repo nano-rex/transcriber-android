@@ -73,41 +73,55 @@ public final class DiarizationUtils {
 
     public static String buildDiarizedTranscript(float[] samples, List<TextSegment> segments) {
         if (samples == null || samples.length == 0 || segments == null || segments.isEmpty()) return "";
-        double[] energies = new double[segments.size()];
+        if (segments.size() == 1) {
+            TextSegment seg = segments.get(0);
+            return "[" + formatTimestamp(seg.startSeconds) + " - " + formatTimestamp(seg.endSeconds) + "] Speaker 1: " + seg.text;
+        }
+
+        double[][] features = new double[segments.size()][2];
         for (int i = 0; i < segments.size(); i++) {
             TextSegment seg = segments.get(i);
             int start = Math.max(0, (int) Math.floor(seg.startSeconds * SAMPLE_RATE));
             int end = Math.min(samples.length, (int) Math.ceil(seg.endSeconds * SAMPLE_RATE));
-            energies[i] = rms(samples, start, end);
+            features[i][0] = rms(samples, start, end);
+            features[i][1] = zeroCrossingRate(samples, start, end);
         }
 
-        double c1 = min(energies);
-        double c2 = max(energies);
-        if (Math.abs(c1 - c2) < 1e-9) c2 = c1 + 1e-6;
+        normalizeFeatureColumn(features, 0);
+        normalizeFeatureColumn(features, 1);
+
+        double[] c1 = new double[]{features[0][0], features[0][1]};
+        double[] c2 = new double[]{features[features.length - 1][0], features[features.length - 1][1]};
+        if (distanceSq(c1, c2) < 1e-9) c2 = new double[]{c1[0] + 1e-3, c1[1] + 1e-3};
+        int[] assignments = new int[features.length];
 
         for (int iter = 0; iter < 8; iter++) {
-            double s1 = 0.0, s2 = 0.0;
+            double s1a = 0.0, s1b = 0.0, s2a = 0.0, s2b = 0.0;
             int n1 = 0, n2 = 0;
-            for (double e : energies) {
-                if (Math.abs(e - c1) <= Math.abs(e - c2)) {
-                    s1 += e;
+            for (int i = 0; i < features.length; i++) {
+                double[] f = features[i];
+                boolean cluster1 = distanceSq(f, c1) <= distanceSq(f, c2);
+                assignments[i] = cluster1 ? 0 : 1;
+                if (cluster1) {
+                    s1a += f[0];
+                    s1b += f[1];
                     n1++;
                 } else {
-                    s2 += e;
+                    s2a += f[0];
+                    s2b += f[1];
                     n2++;
                 }
             }
-            if (n1 > 0) c1 = s1 / n1;
-            if (n2 > 0) c2 = s2 / n2;
+            if (n1 > 0) c1 = new double[]{s1a / n1, s1b / n1};
+            if (n2 > 0) c2 = new double[]{s2a / n2, s2b / n2};
         }
 
-        boolean lowerIsSpeaker1 = c1 <= c2;
+        boolean cluster1IsSpeaker1 = c1[0] <= c2[0];
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < segments.size(); i++) {
             TextSegment seg = segments.get(i);
             if (seg.text.isEmpty()) continue;
-            boolean nearC1 = Math.abs(energies[i] - c1) <= Math.abs(energies[i] - c2);
-            int speaker = lowerIsSpeaker1 ? (nearC1 ? 1 : 2) : (nearC1 ? 2 : 1);
+            int speaker = cluster1IsSpeaker1 ? (assignments[i] == 0 ? 1 : 2) : (assignments[i] == 0 ? 2 : 1);
             out.append('[')
                     .append(formatTimestamp(seg.startSeconds))
                     .append(" - ")
@@ -139,16 +153,34 @@ public final class DiarizationUtils {
         return Math.sqrt(sumSq / (end - start));
     }
 
-    private static double min(double[] values) {
-        double m = Double.POSITIVE_INFINITY;
-        for (double v : values) m = Math.min(m, v);
-        return m;
+    private static double zeroCrossingRate(float[] samples, int start, int end) {
+        if (start >= end) return 0.0;
+        int crossings = 0;
+        for (int i = Math.max(start + 1, 1); i < end; i++) {
+            if ((samples[i - 1] >= 0f && samples[i] < 0f) || (samples[i - 1] < 0f && samples[i] >= 0f)) {
+                crossings++;
+            }
+        }
+        return crossings / (double) Math.max(1, end - start);
     }
 
-    private static double max(double[] values) {
-        double m = Double.NEGATIVE_INFINITY;
-        for (double v : values) m = Math.max(m, v);
-        return m;
+    private static void normalizeFeatureColumn(double[][] features, int column) {
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+        for (double[] feature : features) {
+            min = Math.min(min, feature[column]);
+            max = Math.max(max, feature[column]);
+        }
+        double range = Math.max(1e-9, max - min);
+        for (double[] feature : features) {
+            feature[column] = (feature[column] - min) / range;
+        }
+    }
+
+    private static double distanceSq(double[] a, double[] b) {
+        double dx = a[0] - b[0];
+        double dy = a[1] - b[1];
+        return dx * dx + dy * dy;
     }
 
     public static final class TextSegment {

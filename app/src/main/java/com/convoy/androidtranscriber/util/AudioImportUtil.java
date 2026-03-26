@@ -61,7 +61,7 @@ public final class AudioImportUtil {
     private static void normalizeWavTo16kMono(File source, File target) throws IOException {
         float[] sourceSamples = WaveUtil.getSamples(source.getAbsolutePath());
         if (sourceSamples.length == 0) throw new IOException("Unable to decode wav samples");
-        short[] pcm16 = floatToPcm16(resampleLinear(sourceSamples, 16000, 16000));
+        short[] pcm16 = floatToPcm16(enhanceForSpeech(resampleLinear(sourceSamples, 16000, 16000)));
         WaveUtil.createWaveFile(target.getAbsolutePath(), shortsToBytes(pcm16), 16000, 1, 2);
     }
 
@@ -130,7 +130,7 @@ public final class AudioImportUtil {
             short[] decoded = bytesToShorts(pcmOut.toByteArray());
             short[] mono = downmixToMono(decoded, channelCount);
             float[] monoFloat = pcm16ToFloat(mono);
-            float[] resampled = resampleLinear(monoFloat, sourceSampleRate, 16000);
+            float[] resampled = enhanceForSpeech(resampleLinear(monoFloat, sourceSampleRate, 16000));
             short[] finalPcm = floatToPcm16(resampled);
             WaveUtil.createWaveFile(outFile.getAbsolutePath(), shortsToBytes(finalPcm), 16000, 1, 2);
         } catch (Exception e) {
@@ -226,6 +226,49 @@ public final class AudioImportUtil {
             output[i] = (float) ((1.0 - frac) * input[left] + frac * input[right]);
         }
         return output;
+    }
+
+    private static float[] enhanceForSpeech(float[] input) {
+        if (input.length == 0) return input;
+
+        float[] filtered = new float[input.length];
+        float previousInput = 0f;
+        float previousOutput = 0f;
+        for (int i = 0; i < input.length; i++) {
+            float current = input[i];
+            float highPass = (float) (0.97 * (previousOutput + current - previousInput));
+            filtered[i] = highPass;
+            previousInput = current;
+            previousOutput = highPass;
+        }
+
+        double avgAbs = 0.0;
+        for (float sample : filtered) avgAbs += Math.abs(sample);
+        avgAbs = avgAbs / filtered.length;
+        double gate = Math.max(0.006, avgAbs * 0.8);
+
+        float peak = 0f;
+        for (int i = 0; i < filtered.length; i++) {
+            float sample = filtered[i];
+            float abs = Math.abs(sample);
+            if (abs < gate) {
+                sample *= 0.15f;
+            } else if (abs < gate * 1.5) {
+                sample *= 0.55f;
+            }
+            filtered[i] = sample;
+            peak = Math.max(peak, Math.abs(sample));
+        }
+
+        if (peak > 0f) {
+            float gain = Math.min(8f, 0.92f / peak);
+            for (int i = 0; i < filtered.length; i++) {
+                float sample = filtered[i] * gain;
+                filtered[i] = Math.max(-0.98f, Math.min(0.98f, sample));
+            }
+        }
+
+        return filtered;
     }
 
     public static class ImportedAudio {

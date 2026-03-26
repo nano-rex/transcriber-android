@@ -67,7 +67,8 @@ public final class RecorderUtil {
 
             byte[] pcmBytes = pcmOut.toByteArray();
             short[] pcm16 = bytesToShorts(pcmBytes);
-            WaveUtil.createWaveFile(outWavFile.getAbsolutePath(), shortsToBytes(pcm16), SAMPLE_RATE, 1, 2);
+            short[] enhanced = enhancePcm16(pcm16);
+            WaveUtil.createWaveFile(outWavFile.getAbsolutePath(), shortsToBytes(enhanced), SAMPLE_RATE, 1, 2);
             return outWavFile;
         }
 
@@ -82,6 +83,34 @@ public final class RecorderUtil {
             ByteBuffer bb = ByteBuffer.allocate(shorts.length * 2).order(ByteOrder.LITTLE_ENDIAN);
             for (short s : shorts) bb.putShort(s);
             return bb.array();
+        }
+
+        private short[] enhancePcm16(short[] pcm16) {
+            if (pcm16.length == 0) return pcm16;
+            float[] floatSamples = new float[pcm16.length];
+            for (int i = 0; i < pcm16.length; i++) {
+                floatSamples[i] = pcm16[i] / 32768f;
+            }
+
+            float peak = 0f;
+            float previousIn = 0f;
+            float previousOut = 0f;
+            for (int i = 0; i < floatSamples.length; i++) {
+                float current = floatSamples[i];
+                float filtered = (float) (0.97 * (previousOut + current - previousIn));
+                floatSamples[i] = filtered;
+                peak = Math.max(peak, Math.abs(filtered));
+                previousIn = current;
+                previousOut = filtered;
+            }
+
+            float gain = peak > 0f ? Math.min(8f, 0.92f / peak) : 1f;
+            short[] out = new short[pcm16.length];
+            for (int i = 0; i < floatSamples.length; i++) {
+                float sample = Math.max(-0.98f, Math.min(0.98f, floatSamples[i] * gain));
+                out[i] = (short) (sample * 32767f);
+            }
+            return out;
         }
     }
 }

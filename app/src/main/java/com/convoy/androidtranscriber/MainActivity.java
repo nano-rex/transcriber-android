@@ -22,6 +22,7 @@ import com.convoy.androidtranscriber.util.AssetUtils;
 import com.convoy.androidtranscriber.util.AudioImportUtil;
 import com.convoy.androidtranscriber.util.DiarizationUtils;
 import com.convoy.androidtranscriber.util.ModelUtils;
+import com.convoy.androidtranscriber.util.ModelUtils.ModelSpec;
 import com.convoy.androidtranscriber.util.RecorderUtil;
 import com.convoy.androidtranscriber.util.SummaryUtils;
 import com.convoy.androidtranscriber.util.WaveUtil;
@@ -32,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     private static final String DEFAULT_SAMPLE_ASSET = "audio/jfk.wav";
@@ -51,7 +51,8 @@ public class MainActivity extends AppCompatActivity {
     private RecorderUtil.RecorderSession recorderSession;
     private boolean isRecording = false;
     private String recommendedTier;
-    private String selectedTier;
+    private ModelSpec selectedModel;
+    private final List<ModelSpec> availableModels = new ArrayList<>();
     private long startTimeMs;
 
     private final ActivityResultLauncher<String[]> pickMediaLauncher =
@@ -81,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnRecord = findViewById(R.id.btnRecord);
         Button btnTranscribe = findViewById(R.id.btnTranscribe);
         Button btnSavedOutputs = findViewById(R.id.btnSavedOutputs);
+        Button btnManageModels = findViewById(R.id.btnManageModels);
 
         whisper = new Whisper(this);
         whisper.setListener(new Whisper.WhisperListener() {
@@ -111,30 +113,41 @@ public class MainActivity extends AppCompatActivity {
 
         recommendedTier = ModelUtils.recommendModelTier(this);
         tvModelRecommendation.setText(buildRecommendationText(recommendedTier));
-        setupModelSpinner(recommendedTier);
+        setupModelSpinner();
         ensureBundledSampleReady();
 
         btnPickFile.setOnClickListener(v -> pickMediaLauncher.launch(new String[]{"audio/*", "video/*"}));
         btnRecord.setOnClickListener(v -> toggleRecording(btnRecord));
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
+        btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
     }
 
-    private void setupModelSpinner(String recommendedTier) {
-        List<String> available = new ArrayList<>();
-        for (Map.Entry<String, String> entry : ModelUtils.bundledModelAssets().entrySet()) {
-            String tier = entry.getKey();
-            String asset = entry.getValue();
-            if (assetExists(asset)) available.add(tier);
-        }
-        if (available.isEmpty()) available.add(ModelUtils.TINY_EN);
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setupModelSpinner();
+    }
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, available);
+    private void setupModelSpinner() {
+        availableModels.clear();
+        availableModels.addAll(ModelUtils.availableModels(this));
+        if (availableModels.isEmpty()) {
+            availableModels.add(new ModelSpec(ModelUtils.TINY_EN, ModelUtils.TINY_EN, "models/whisper-tiny.en.tflite", true, false));
+        }
+
+        List<String> labels = new ArrayList<>();
+        int recommendedIndex = 0;
+        for (int i = 0; i < availableModels.size(); i++) {
+            ModelSpec spec = availableModels.get(i);
+            labels.add(spec.label + (spec.multilingual ? " [multilingual]" : " [english-only]"));
+            if (spec.tierHint().equals(recommendedTier)) recommendedIndex = i;
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerModel.setAdapter(adapter);
-
-        int recommendedIndex = Math.max(0, available.indexOf(recommendedTier));
-        spinnerModel.setSelection(recommendedIndex >= 0 ? recommendedIndex : 0);
+        spinnerModel.setSelection(Math.max(0, Math.min(recommendedIndex, labels.size() - 1)));
     }
 
     private String buildRecommendationText(String tier) {
@@ -144,15 +157,6 @@ public class MainActivity extends AppCompatActivity {
         if (activityManager != null) activityManager.getMemoryInfo(memoryInfo);
         double memGb = memoryInfo.totalMem / 1024.0 / 1024.0 / 1024.0;
         return String.format(Locale.US, "Recommended model: %s (%d threads, %.1f GB RAM)", tier, cpuThreads, memGb);
-    }
-
-    private boolean assetExists(String path) {
-        try {
-            getAssets().open(path).close();
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
     }
 
     private void ensureBundledSampleReady() {
@@ -193,8 +197,12 @@ public class MainActivity extends AppCompatActivity {
             tvStatus.setText("Status: pick a media file first");
             return;
         }
-        String selectedTier = String.valueOf(spinnerModel.getSelectedItem());
-        this.selectedTier = selectedTier;
+        int modelIndex = spinnerModel.getSelectedItemPosition();
+        if (modelIndex < 0 || modelIndex >= availableModels.size()) {
+            tvStatus.setText("Status: pick a model first");
+            return;
+        }
+        selectedModel = availableModels.get(modelIndex);
         startTimeMs = System.currentTimeMillis();
         tvTranscript.setText("");
         tvDiarized.setText("");
@@ -203,10 +211,10 @@ public class MainActivity extends AppCompatActivity {
 
         new Thread(() -> {
             try {
-                File modelFile = ensureModelFile(selectedTier);
-                File vocabFile = ensureVocabFile(selectedTier);
+                File modelFile = ensureModelFile(selectedModel);
+                File vocabFile = ensureVocabFile(selectedModel);
                 whisper.unloadModel();
-                whisper.loadModel(modelFile.getAbsolutePath(), vocabFile.getAbsolutePath(), ModelUtils.isMultilingual(selectedTier));
+                whisper.loadModel(modelFile.getAbsolutePath(), vocabFile.getAbsolutePath(), selectedModel.multilingual);
                 whisper.setFilePath(currentImportedWav.getAbsolutePath());
                 whisper.start();
             } catch (Exception e) {
@@ -215,15 +223,18 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    private File ensureModelFile(String tier) throws IOException {
-        String assetPath = ModelUtils.bundledModelAssets().get(tier);
-        if (assetPath == null) throw new IOException("Unknown model tier: " + tier);
-        File outFile = new File(new File(getFilesDir(), "models"), new File(assetPath).getName());
-        return AssetUtils.copyAssetToFile(this, assetPath, outFile);
+    private File ensureModelFile(ModelSpec spec) throws IOException {
+        if (spec.bundled) {
+            File outFile = new File(new File(getFilesDir(), "models"), new File(spec.assetPath).getName());
+            return AssetUtils.copyAssetToFile(this, spec.assetPath, outFile);
+        }
+        File file = new File(spec.assetPath);
+        if (!file.exists()) throw new IOException("Model file not found: " + file.getName());
+        return file;
     }
 
-    private File ensureVocabFile(String tier) throws IOException {
-        String assetPath = ModelUtils.vocabAssetForTier(tier);
+    private File ensureVocabFile(ModelSpec spec) throws IOException {
+        String assetPath = ModelUtils.vocabAssetForModel(spec);
         File outFile = new File(new File(getFilesDir(), "vocab"), new File(assetPath).getName());
         return AssetUtils.copyAssetToFile(this, assetPath, outFile);
     }
@@ -312,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
         double durationSeconds = sampleCount / 16000.0;
         String json = "{\n"
                 + "  \"input\": \"" + escapeJson(currentImportedWav.getAbsolutePath()) + "\",\n"
-                + "  \"model\": \"" + escapeJson(selectedTier == null ? "" : selectedTier) + "\",\n"
+                + "  \"model\": \"" + escapeJson(selectedModel == null ? "" : selectedModel.label) + "\",\n"
                 + "  \"duration_seconds\": " + String.format(Locale.US, "%.2f", durationSeconds) + ",\n"
                 + "  \"transcript_chars\": " + (transcript == null ? 0 : transcript.length()) + ",\n"
                 + "  \"diarized_chars\": " + (diarizedText == null ? 0 : diarizedText.length()) + "\n"

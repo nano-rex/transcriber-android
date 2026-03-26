@@ -65,6 +65,13 @@
             android:layout_marginTop="8dp"
             android:text="Saved Outputs" />
 
+        <Button
+            android:id="@+id/btnManageModels"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Manage Models" />
+
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
