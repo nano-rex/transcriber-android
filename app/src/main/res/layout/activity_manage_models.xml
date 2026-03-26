@@ -16,7 +16,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="Select a model to see its status and apply an action." />
+        android:text="Built-in models are ready. Extra models download from the hosted model catalog." />
 
     <EditText
         android:id="@+id/etSearchModels"
@@ -38,29 +38,5 @@
         android:layout_height="0dp"
         android:layout_marginTop="12dp"
         android:layout_weight="1" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnPrimaryModelAction"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:enabled="false"
-            android:text="Download / Import" />
-
-        <Button
-            android:id="@+id/btnSecondaryModelAction"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:enabled="false"
-            android:text="Remove" />
-    </LinearLayout>
 
 </LinearLayout>

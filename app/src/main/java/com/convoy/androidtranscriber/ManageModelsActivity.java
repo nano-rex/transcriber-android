@@ -1,44 +1,38 @@
 package com.convoy.androidtranscriber;
 
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.convoy.androidtranscriber.util.ModelUtils;
-import com.convoy.androidtranscriber.util.ModelUtils.ModelSpec;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 public class ManageModelsActivity extends AppCompatActivity {
+    private static final String SMALL_MODEL_URL =
+            "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-small-tflite/whisper-small.tflite";
+    private static final String SMALL_MODEL_FILE = "whisper-small.tflite";
+
     private EditText etSearch;
     private TextView tvStatus;
     private ListView listModels;
-    private Button btnPrimaryAction;
-    private Button btnSecondaryAction;
 
     private final List<ModelRow> allRows = new ArrayList<>();
     private final List<ModelRow> filteredRows = new ArrayList<>();
     private ModelListAdapter adapter;
-    private int selectedIndex = -1;
-
-    private final ActivityResultLauncher<String[]> importModelLauncher =
-            registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::onModelPicked);
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -48,12 +42,9 @@ public class ManageModelsActivity extends AppCompatActivity {
         etSearch = findViewById(R.id.etSearchModels);
         tvStatus = findViewById(R.id.tvModelStatus);
         listModels = findViewById(R.id.listModels);
-        btnPrimaryAction = findViewById(R.id.btnPrimaryModelAction);
-        btnSecondaryAction = findViewById(R.id.btnSecondaryModelAction);
 
-        adapter = new ModelListAdapter(this, filteredRows);
+        adapter = new ModelListAdapter(this, filteredRows, this::handleRowAction);
         listModels.setAdapter(adapter);
-        listModels.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
         etSearch.addTextChangedListener(new SimpleTextWatcher() {
             @Override
@@ -62,36 +53,14 @@ public class ManageModelsActivity extends AppCompatActivity {
             }
         });
 
-        listModels.setOnItemClickListener((parent, view, position, id) -> {
-            selectedIndex = position;
-            listModels.setItemChecked(position, true);
-            refreshActionButtons();
-        });
-
-        btnPrimaryAction.setOnClickListener(v -> runPrimaryAction());
-        btnSecondaryAction.setOnClickListener(v -> runSecondaryAction());
-
         loadRows();
     }
 
     private void loadRows() {
         allRows.clear();
-        for (ModelSpec spec : ModelUtils.bundledModelSpecs()) {
-            boolean available = assetExists(spec.assetPath);
-            String action = available ? "Built-in" : "Import";
-            allRows.add(new ModelRow(spec.label, available ? "Bundled" : "Missing", spec.multilingual,
-                    spec.assetPath, available, true, false, action));
-        }
-
-        File[] customFiles = ModelUtils.customModelsDir(this).listFiles((dir, name) ->
-                name.toLowerCase(Locale.US).endsWith(".tflite"));
-        if (customFiles != null) {
-            for (File file : customFiles) {
-                boolean multilingual = !file.getName().toLowerCase(Locale.US).contains(".en");
-                allRows.add(new ModelRow(file.getName(), "Downloaded", multilingual,
-                        file.getAbsolutePath(), true, false, true, "Remove"));
-            }
-        }
+        allRows.add(buildBundledRow("tiny-en", "models/whisper-tiny.en.tflite", false));
+        allRows.add(buildBundledRow("tiny", "models/whisper-tiny.tflite", true));
+        allRows.add(buildHostedRow("small", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }
@@ -105,110 +74,96 @@ public class ManageModelsActivity extends AppCompatActivity {
             }
         }
         adapter.notifyDataSetChanged();
-        if (selectedIndex >= filteredRows.size()) {
-            selectedIndex = -1;
-            listModels.clearChoices();
-        }
         tvStatus.setText(filteredRows.isEmpty() ? "No models found." : "Models listed: " + filteredRows.size());
-        refreshActionButtons();
     }
 
-    private void refreshActionButtons() {
-        ModelRow selected = getSelectedRow();
-        if (selected == null) {
-            btnPrimaryAction.setEnabled(false);
-            btnSecondaryAction.setEnabled(false);
-            btnPrimaryAction.setText("Download / Import");
-            btnSecondaryAction.setText("Remove");
+    private ModelRow buildBundledRow(String displayName, String assetPath, boolean multilingual) {
+        boolean available = assetExists(assetPath);
+        return new ModelRow(displayName, available ? "Bundled" : "Missing bundled asset", multilingual,
+                assetPath, available, true, false, available ? "Bundled" : "Missing", false, null);
+    }
+
+    private ModelRow buildHostedRow(String displayName, String fileName, String url, boolean multilingual) {
+        File localFile = new File(ModelUtils.customModelsDir(this), fileName);
+        boolean downloaded = localFile.exists();
+        return new ModelRow(displayName, downloaded ? "Downloaded" : "Not downloaded", multilingual,
+                localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
+                true, url);
+    }
+
+    private void handleRowAction(ModelRow row) {
+        if (!row.actionEnabled) {
+            tvStatus.setText(row.displayName + " is already built in.");
             return;
         }
-
-        if (selected.customFile) {
-            btnPrimaryAction.setEnabled(false);
-            btnPrimaryAction.setText("Downloaded");
-            btnSecondaryAction.setEnabled(true);
-            btnSecondaryAction.setText("Remove");
+        if (row.customFile) {
+            confirmRemove(row);
             return;
         }
-
-        if (selected.available) {
-            btnPrimaryAction.setEnabled(false);
-            btnPrimaryAction.setText("Built-in");
-            btnSecondaryAction.setEnabled(false);
-            btnSecondaryAction.setText("Remove");
-        } else {
-            btnPrimaryAction.setEnabled(true);
-            btnPrimaryAction.setText("Import File");
-            btnSecondaryAction.setEnabled(false);
-            btnSecondaryAction.setText("Remove");
+        if (row.downloadUrl != null) {
+            downloadModel(row);
         }
     }
 
-    private void runPrimaryAction() {
-        ModelRow selected = getSelectedRow();
-        if (selected == null) {
-            tvStatus.setText("Select a model first.");
-            return;
-        }
-        if (!selected.available && !selected.customFile) {
-            importModelLauncher.launch(new String[]{"application/octet-stream", "*/*"});
-        }
-    }
-
-    private void runSecondaryAction() {
-        ModelRow selected = getSelectedRow();
-        if (selected == null || !selected.customFile) {
-            tvStatus.setText("Select a downloaded custom model to remove.");
-            return;
-        }
-
+    private void confirmRemove(ModelRow row) {
         new AlertDialog.Builder(this)
                 .setTitle("Remove model")
-                .setMessage("Remove " + selected.displayName + "?")
+                .setMessage("Remove " + row.displayName + "?")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Remove", (dialog, which) -> {
-                    File file = new File(selected.location);
-                    if (file.exists()) file.delete();
-                    selectedIndex = -1;
+                    File file = new File(row.location);
+                    boolean deleted = !file.exists() || file.delete();
+                    tvStatus.setText(deleted ? "Removed " + row.displayName : "Failed to remove " + row.displayName);
                     loadRows();
                 })
                 .show();
     }
 
-    private void onModelPicked(Uri uri) {
-        ModelRow selected = getSelectedRow();
-        if (uri == null || selected == null) return;
+    private void downloadModel(ModelRow row) {
+        tvStatus.setText("Downloading " + row.displayName + "...");
         new Thread(() -> {
+            File target = new File(row.location);
+            File tmp = new File(target.getParentFile(), target.getName() + ".part");
             try {
-                try {
-                    getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                } catch (Exception ignored) {
+                downloadToFile(row.downloadUrl, tmp);
+                if (target.exists() && !target.delete()) {
+                    throw new IOException("Unable to replace existing model");
                 }
-
-                String displayName = queryDisplayName(uri);
-                if (displayName == null || !displayName.toLowerCase(Locale.US).endsWith(".tflite")) {
-                    throw new IOException("Pick a .tflite model file");
+                if (!tmp.renameTo(target)) {
+                    throw new IOException("Unable to finalize downloaded model");
                 }
-                File outFile;
-                if (selected.displayName.toLowerCase(Locale.US).contains("small")) {
-                    outFile = new File(ModelUtils.customModelsDir(this), "whisper-small.tflite");
-                } else {
-                    outFile = new File(ModelUtils.customModelsDir(this), sanitizeName(displayName));
-                }
-                copyUriToFile(uri, outFile);
                 runOnUiThread(() -> {
-                    tvStatus.setText("Imported model: " + outFile.getName());
+                    tvStatus.setText("Downloaded " + row.displayName);
                     loadRows();
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> tvStatus.setText("Import failed: " + e.getMessage()));
+                if (tmp.exists()) tmp.delete();
+                runOnUiThread(() -> tvStatus.setText("Download failed: " + e.getMessage()));
             }
         }).start();
     }
 
-    private ModelRow getSelectedRow() {
-        if (selectedIndex < 0 || selectedIndex >= filteredRows.size()) return null;
-        return filteredRows.get(selectedIndex);
+    private void downloadToFile(String urlText, File target) throws IOException {
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists()) parent.mkdirs();
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
+        connection.setInstanceFollowRedirects(true);
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(60000);
+        connection.connect();
+        int code = connection.getResponseCode();
+        if (code < 200 || code >= 300) {
+            throw new IOException("HTTP " + code);
+        }
+        try (InputStream in = connection.getInputStream();
+             OutputStream out = new java.io.FileOutputStream(target)) {
+            byte[] buffer = new byte[16384];
+            for (int read; (read = in.read(buffer)) != -1; ) {
+                out.write(buffer, 0, read);
+            }
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private boolean assetExists(String path) {
@@ -220,35 +175,6 @@ public class ManageModelsActivity extends AppCompatActivity {
         }
     }
 
-    private String queryDisplayName(Uri uri) {
-        try (android.database.Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
-                if (nameIndex >= 0) return cursor.getString(nameIndex);
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
-    }
-
-    private void copyUriToFile(Uri uri, File target) throws IOException {
-        File parent = target.getParentFile();
-        if (parent != null && !parent.exists()) parent.mkdirs();
-        try (InputStream in = getContentResolver().openInputStream(uri);
-             FileOutputStream out = new FileOutputStream(target)) {
-            if (in == null) throw new IOException("Unable to open model file");
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        }
-    }
-
-    private String sanitizeName(String name) {
-        return name.replaceAll("[^a-zA-Z0-9._-]", "_");
-    }
-
     public static final class ModelRow {
         public final String displayName;
         public final String state;
@@ -258,9 +184,12 @@ public class ManageModelsActivity extends AppCompatActivity {
         public final boolean bundled;
         public final boolean customFile;
         public final String actionLabel;
+        public final boolean actionEnabled;
+        public final String downloadUrl;
 
         public ModelRow(String displayName, String state, boolean multilingual, String location,
-                        boolean available, boolean bundled, boolean customFile, String actionLabel) {
+                        boolean available, boolean bundled, boolean customFile, String actionLabel,
+                        boolean actionEnabled, String downloadUrl) {
             this.displayName = displayName;
             this.state = state;
             this.multilingual = multilingual;
@@ -269,6 +198,8 @@ public class ManageModelsActivity extends AppCompatActivity {
             this.bundled = bundled;
             this.customFile = customFile;
             this.actionLabel = actionLabel;
+            this.actionEnabled = actionEnabled;
+            this.downloadUrl = downloadUrl;
         }
 
         public String statusLine() {
