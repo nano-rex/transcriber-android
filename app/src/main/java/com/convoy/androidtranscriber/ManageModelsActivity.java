@@ -25,6 +25,9 @@ public class ManageModelsActivity extends AppCompatActivity {
     private static final String SMALL_MODEL_URL =
             "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-small-tflite/whisper-small.tflite";
     private static final String SMALL_MODEL_FILE = "whisper-small.tflite";
+    private static final String MEDIUM_MODEL_URL =
+            "https://huggingface.co/cik009/whisper/resolve/main/whisper-medium.tflite?download=true";
+    private static final String MEDIUM_MODEL_FILE = "whisper-medium.tflite";
 
     private EditText etSearch;
     private TextView tvStatus;
@@ -61,6 +64,7 @@ public class ManageModelsActivity extends AppCompatActivity {
         allRows.add(buildBundledRow("tiny-en", "ASR", "models/whisper-tiny.en.tflite", false));
         allRows.add(buildBundledRow("tiny", "ASR", "models/whisper-tiny.tflite", true));
         allRows.add(buildHostedRow("small", "ASR", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
+        allRows.add(buildHostedRow("medium", "ASR", MEDIUM_MODEL_FILE, MEDIUM_MODEL_URL, true));
         allRows.add(buildSummaryRulesRow());
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
@@ -131,7 +135,7 @@ public class ManageModelsActivity extends AppCompatActivity {
             File target = new File(row.location);
             File tmp = new File(target.getParentFile(), target.getName() + ".part");
             try {
-                downloadToFile(row.downloadUrl, tmp);
+                downloadToFile(row.downloadUrl, tmp, row.displayName);
                 if (target.exists() && !target.delete()) {
                     throw new IOException("Unable to replace existing model");
                 }
@@ -149,7 +153,7 @@ public class ManageModelsActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void downloadToFile(String urlText, File target) throws IOException {
+    private void downloadToFile(String urlText, File target, String displayName) throws IOException {
         File parent = target.getParentFile();
         if (parent != null && !parent.exists()) parent.mkdirs();
         HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
@@ -161,11 +165,21 @@ public class ManageModelsActivity extends AppCompatActivity {
         if (code < 200 || code >= 300) {
             throw new IOException("HTTP " + code);
         }
+        int contentLength = connection.getContentLength();
         try (InputStream in = connection.getInputStream();
              OutputStream out = new java.io.FileOutputStream(target)) {
             byte[] buffer = new byte[16384];
+            long totalRead = 0L;
             for (int read; (read = in.read(buffer)) != -1; ) {
                 out.write(buffer, 0, read);
+                totalRead += read;
+                if (contentLength > 0) {
+                    int percent = (int) Math.min(100L, (totalRead * 100L) / contentLength);
+                    runOnUiThread(() -> tvStatus.setText("Downloading " + displayName + "... " + percent + "%"));
+                } else {
+                    long mb = totalRead / (1024L * 1024L);
+                    runOnUiThread(() -> tvStatus.setText("Downloading " + displayName + "... " + mb + " MB"));
+                }
             }
         } finally {
             connection.disconnect();

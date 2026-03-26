@@ -51,7 +51,7 @@ public final class ModelUtils {
                 String fileName = file.getName();
                 String id = "custom:" + fileName;
                 boolean multilingual = !looksEnglishOnly(fileName);
-                String label = stripExtension(fileName) + " (custom)";
+                String label = knownModelLabel(fileName);
                 specs.add(new ModelSpec(id, label, file.getAbsolutePath(), false, multilingual));
             }
         }
@@ -164,6 +164,15 @@ public final class ModelUtils {
     private static String stripExtension(String fileName) {
         int dot = fileName.lastIndexOf('.');
         return dot > 0 ? fileName.substring(0, dot) : fileName;
+    }
+
+    private static String knownModelLabel(String fileName) {
+        String lower = fileName.toLowerCase(Locale.US);
+        if ("whisper-small.tflite".equals(lower)) return SMALL;
+        if ("whisper-medium.tflite".equals(lower)) return MEDIUM;
+        if ("whisper-tiny.tflite".equals(lower)) return TINY;
+        if ("whisper-tiny.en.tflite".equals(lower)) return TINY_EN;
+        return stripExtension(fileName) + " (custom)";
     }
 
     public static final class ModelSpec {
