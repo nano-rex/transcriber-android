@@ -2,3 +2,4 @@
 app/build/
 local.properties
 app/src/main/assets/models/whisper-small.tflite
+releases/*.apk

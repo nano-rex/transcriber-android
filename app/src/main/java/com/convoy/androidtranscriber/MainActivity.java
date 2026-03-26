@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
@@ -44,6 +45,9 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvDiarized;
     private TextView tvSummary;
     private Spinner spinnerModel;
+    private Button btnToggleTranscript;
+    private Button btnToggleDiarized;
+    private Button btnToggleSummary;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Whisper whisper;
@@ -78,6 +82,9 @@ public class MainActivity extends AppCompatActivity {
         tvDiarized = findViewById(R.id.tvDiarized);
         tvSummary = findViewById(R.id.tvSummary);
         spinnerModel = findViewById(R.id.spinnerModel);
+        btnToggleTranscript = findViewById(R.id.btnToggleTranscript);
+        btnToggleDiarized = findViewById(R.id.btnToggleDiarized);
+        btnToggleSummary = findViewById(R.id.btnToggleSummary);
         Button btnPickFile = findViewById(R.id.btnPickFile);
         Button btnRecord = findViewById(R.id.btnRecord);
         Button btnTranscribe = findViewById(R.id.btnTranscribe);
@@ -106,6 +113,15 @@ public class MainActivity extends AppCompatActivity {
                     String diarizedText = buildDiarizedText(safeResult);
                     tvDiarized.setText(diarizedText);
                     tvSummary.setText(SummaryUtils.buildSummaryReport(safeResult));
+                    if (!safeResult.isEmpty()) {
+                        setSectionExpanded(tvTranscript, btnToggleTranscript, "Transcript");
+                    }
+                    if (!diarizedText.isEmpty()) {
+                        setSectionExpanded(tvDiarized, btnToggleDiarized, "Diarized Transcript");
+                    }
+                    if (!tvSummary.getText().toString().trim().isEmpty()) {
+                        setSectionExpanded(tvSummary, btnToggleSummary, "Overview + Key Points");
+                    }
                     writeOutputsIfPossible(safeResult, diarizedText);
                 });
             }
@@ -121,6 +137,12 @@ public class MainActivity extends AppCompatActivity {
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
         btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
+        btnToggleTranscript.setOnClickListener(v -> toggleSection(tvTranscript, btnToggleTranscript, "Transcript"));
+        btnToggleDiarized.setOnClickListener(v -> toggleSection(tvDiarized, btnToggleDiarized, "Diarized Transcript"));
+        btnToggleSummary.setOnClickListener(v -> toggleSection(tvSummary, btnToggleSummary, "Overview + Key Points"));
+        setSectionCollapsed(tvTranscript, btnToggleTranscript, "Transcript");
+        setSectionCollapsed(tvDiarized, btnToggleDiarized, "Diarized Transcript");
+        setSectionCollapsed(tvSummary, btnToggleSummary, "Overview + Key Points");
     }
 
     @Override
@@ -207,6 +229,9 @@ public class MainActivity extends AppCompatActivity {
         tvTranscript.setText("");
         tvDiarized.setText("");
         tvSummary.setText("");
+        setSectionCollapsed(tvTranscript, btnToggleTranscript, "Transcript");
+        setSectionCollapsed(tvDiarized, btnToggleDiarized, "Diarized Transcript");
+        setSectionCollapsed(tvSummary, btnToggleSummary, "Overview + Key Points");
         tvStatus.setText("Status: preparing model...");
 
         new Thread(() -> {
@@ -317,6 +342,24 @@ public class MainActivity extends AppCompatActivity {
         try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
             fos.write((content == null ? "" : content).getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private void toggleSection(TextView content, Button toggle, String title) {
+        if (content.getVisibility() == View.VISIBLE) {
+            setSectionCollapsed(content, toggle, title);
+        } else {
+            setSectionExpanded(content, toggle, title);
+        }
+    }
+
+    private void setSectionCollapsed(TextView content, Button toggle, String title) {
+        content.setVisibility(View.GONE);
+        toggle.setText(title + " ▼");
+    }
+
+    private void setSectionExpanded(TextView content, Button toggle, String title) {
+        content.setVisibility(View.VISIBLE);
+        toggle.setText(title + " ▲");
     }
 
     private void writeMetadataFile(File file, String transcript, String diarizedText, int sampleCount) throws IOException {

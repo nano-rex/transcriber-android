@@ -16,7 +16,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="Bundled models are read-only. Import extra .tflite models here to match the desktop pipeline more closely." />
+        android:text="Select a model to see its status and apply an action." />
 
     <EditText
         android:id="@+id/etSearchModels"
@@ -24,21 +24,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:hint="Search models" />
-
-    <Button
-        android:id="@+id/btnImportModel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Import .tflite Model" />
-
-    <Button
-        android:id="@+id/btnDeleteModel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:enabled="false"
-        android:text="Delete Selected Custom Model" />
 
     <TextView
         android:id="@+id/tvModelStatus"
@@ -53,5 +38,29 @@
         android:layout_height="0dp"
         android:layout_marginTop="12dp"
         android:layout_weight="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnPrimaryModelAction"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="Download / Import" />
+
+        <Button
+            android:id="@+id/btnSecondaryModelAction"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="Remove" />
+    </LinearLayout>
 
 </LinearLayout>
