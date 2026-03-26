@@ -6,7 +6,7 @@ Android client for the `Transcriber Desktop` project. It is written in plain Jav
 - offline on-device Whisper TFLite transcription
 - bundled `tiny-en` and `tiny` by default
 - optional local `small` model for manual testing
-- local audio enhancement before transcription
+- local audio enhancement with bundled AI denoise before transcription
 - local diarized transcript output
 - local summary and key points
 - saved outputs screen with search and delete
@@ -16,6 +16,7 @@ Android client for the `Transcriber Desktop` project. It is written in plain Jav
 - `app/src/main/java/com/convoy/androidtranscriber/` app code
 - `app/src/main/assets/models/` bundled TFLite models
 - `app/src/main/assets/audio/` sample audio
+- `app/src/main/assets/denoise/` bundled RNNoise model for AI denoise
 - `app/src/main/res/` layouts and resources
 - `scripts/` local helper scripts for staging bigger models
 - `releases/` built APK copies
@@ -85,7 +86,7 @@ You can also import extra `.tflite` models from inside the app using `Manage Mod
 ## App Flow
 1. Choose a bundled or imported model.
 2. Pick media or record audio.
-3. The app converts audio to enhanced 16 kHz mono WAV.
+3. The app converts audio to enhanced 16 kHz mono WAV and runs bundled AI denoise.
 4. Transcription runs fully on-device.
 5. Transcript, diarized transcript, summary, and metadata are saved locally.
 

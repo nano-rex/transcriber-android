@@ -7,9 +7,12 @@ import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.net.Uri;
-import android.os.Build;
 import android.provider.OpenableColumns;
 import android.util.Log;
+
+import com.arthenica.ffmpegkit.FFmpegKit;
+import com.arthenica.ffmpegkit.FFmpegSession;
+import com.arthenica.ffmpegkit.ReturnCode;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -25,6 +28,7 @@ public final class AudioImportUtil {
     private static final String TAG = "AudioImportUtil";
     private static final long TIMEOUT_US = 10000;
     public static final int TRANSCRIBE_CHUNK_SECONDS = 300;
+    private static final String AI_DENOISE_MODEL_ASSET = "denoise/std.rnnn";
 
     private AudioImportUtil() {}
 
@@ -50,7 +54,7 @@ public final class AudioImportUtil {
         if (lower.endsWith(".wav")) {
             File rawCopy = new File(importsDir, sanitizeBaseName(displayName) + ".source.wav");
             copyUriToFile(context, uri, rawCopy, listener);
-            normalizeWavTo16kMono(rawCopy, outFile, listener);
+            normalizeWavTo16kMono(context, rawCopy, outFile, listener);
             notifyProgress(listener, 100, "import complete");
             return new ImportedAudio(displayName, outFile);
         }
@@ -83,13 +87,15 @@ public final class AudioImportUtil {
         }
     }
 
-    private static void normalizeWavTo16kMono(File source, File target, ProgressListener listener) throws IOException {
-        notifyProgress(listener, 60, "enhancing audio");
+    private static void normalizeWavTo16kMono(Context context, File source, File target, ProgressListener listener) throws IOException {
+        notifyProgress(listener, 55, "enhancing audio");
         float[] sourceSamples = WaveUtil.getSamples(source.getAbsolutePath());
         if (sourceSamples.length == 0) throw new IOException("Unable to decode wav samples");
         short[] pcm16 = floatToPcm16(enhanceForSpeech(resampleLinear(sourceSamples, 16000, 16000)));
-        notifyProgress(listener, 90, "writing enhanced wav");
-        WaveUtil.createWaveFile(target.getAbsolutePath(), shortsToBytes(pcm16), 16000, 1, 2);
+        File staged = new File(target.getParentFile(), target.getName() + ".pre_ai.wav");
+        WaveUtil.createWaveFile(staged.getAbsolutePath(), shortsToBytes(pcm16), 16000, 1, 2);
+        notifyProgress(listener, 90, "ai denoise");
+        finalizeWithAiDenoise(context, staged, target, listener);
     }
 
     private static void decodeMediaTo16kMonoWav(Context context, Uri uri, File outFile, ProgressListener listener) throws IOException {
@@ -147,7 +153,7 @@ public final class AudioImportUtil {
                         pcmOut.write(chunk);
                     }
                     codec.releaseOutputBuffer(outputIndex, false);
-                    if (decodePercent < 70) {
+                    if (decodePercent < 68) {
                         decodePercent += 2;
                         notifyProgress(listener, decodePercent, "decoding media");
                     }
@@ -166,13 +172,56 @@ public final class AudioImportUtil {
             notifyProgress(listener, 75, "enhancing audio");
             float[] resampled = enhanceForSpeech(resampleLinear(monoFloat, sourceSampleRate, 16000));
             short[] finalPcm = floatToPcm16(resampled);
-            notifyProgress(listener, 92, "writing enhanced wav");
-            WaveUtil.createWaveFile(outFile.getAbsolutePath(), shortsToBytes(finalPcm), 16000, 1, 2);
+            File staged = new File(outFile.getParentFile(), outFile.getName() + ".pre_ai.wav");
+            WaveUtil.createWaveFile(staged.getAbsolutePath(), shortsToBytes(finalPcm), 16000, 1, 2);
+            notifyProgress(listener, 92, "ai denoise");
+            finalizeWithAiDenoise(context, staged, outFile, listener);
         } catch (Exception e) {
             throw new IOException("Failed to import media: " + e.getMessage(), e);
         } finally {
             extractor.release();
         }
+    }
+
+    private static void finalizeWithAiDenoise(Context context, File stagedWav, File outFile, ProgressListener listener) throws IOException {
+        try {
+            File modelFile = ensureAiDenoiseModel(context);
+            aiDenoiseWav(stagedWav, outFile, modelFile);
+        } catch (Exception e) {
+            Log.w(TAG, "AI denoise failed, keeping staged wav", e);
+            try {
+                java.nio.file.Files.copy(stagedWav.toPath(), outFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception copyError) {
+                throw new IOException("Failed to finalize wav after AI denoise error", copyError);
+            }
+        } finally {
+            stagedWav.delete();
+        }
+        notifyProgress(listener, 97, "writing enhanced wav");
+    }
+
+    private static File ensureAiDenoiseModel(Context context) throws IOException {
+        File modelFile = new File(new File(context.getFilesDir(), "denoise"), "std.rnnn");
+        return AssetUtils.copyAssetToFile(context, AI_DENOISE_MODEL_ASSET, modelFile);
+    }
+
+    private static void aiDenoiseWav(File inputWav, File outputWav, File modelFile) throws IOException {
+        String filter = "arnndn=m=" + ffmpegQuote(modelFile) + ",highpass=f=100,lowpass=f=7200,acompressor=threshold=-22dB:ratio=2.0:attack=10:release=180:makeup=2dB:knee=2,alimiter=limit=0.92";
+        String command = "-y -i " + ffmpegQuote(inputWav) + " -ac 1 -ar 16000 -af " + ffmpegQuote(filter) + " " + ffmpegQuote(outputWav);
+        FFmpegSession session = FFmpegKit.execute(command);
+        if (!ReturnCode.isSuccess(session.getReturnCode())) {
+            String detail = session.getFailStackTrace();
+            if (detail == null || detail.isBlank()) detail = session.getOutput();
+            throw new IOException("AI denoise failed" + (detail == null || detail.isBlank() ? "" : ": " + detail));
+        }
+    }
+
+    private static String ffmpegQuote(File file) {
+        return ffmpegQuote(file.getAbsolutePath());
+    }
+
+    private static String ffmpegQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 
     private static int selectAudioTrack(MediaExtractor extractor) {
@@ -318,85 +367,53 @@ public final class AudioImportUtil {
                 output[i] = sample * gain;
             }
         }
-
         return output;
     }
 
     private static float[] softLimit(float[] input) {
-        float peak = 0f;
-        for (float sample : input) peak = Math.max(peak, Math.abs(sample));
-        float preGain = peak > 0f ? Math.min(10f, 0.96f / peak) : 1f;
         float[] output = new float[input.length];
         for (int i = 0; i < input.length; i++) {
-            float sample = input[i] * preGain;
-            output[i] = (float) Math.tanh(sample * 1.4f) / 1.05f;
+            float sample = (float) Math.tanh(input[i] * 1.5f) / 1.05f;
+            output[i] = Math.max(-0.98f, Math.min(0.98f, sample));
         }
         return output;
     }
 
     private static void notifyProgress(ProgressListener listener, int percent, String stage) {
-        if (listener != null) {
-            listener.onProgress(Math.max(0, Math.min(100, percent)), stage);
-        }
+        if (listener != null) listener.onProgress(percent, stage);
     }
 
-    public static class ImportedAudio {
+    public static List<File> splitWavForTranscription(Context context, File wavFile) throws IOException {
+        float[] samples = WaveUtil.getSamples(wavFile.getAbsolutePath());
+        if (samples.length == 0) return List.of(wavFile);
+
+        int sampleRate = 16000;
+        int chunkSamples = TRANSCRIBE_CHUNK_SECONDS * sampleRate;
+        if (samples.length <= chunkSamples) return List.of(wavFile);
+
+        File chunksDir = new File(context.getFilesDir(), "chunks");
+        if (!chunksDir.exists()) chunksDir.mkdirs();
+
+        List<File> parts = new ArrayList<>();
+        int partIndex = 0;
+        for (int start = 0; start < samples.length; start += chunkSamples) {
+            int end = Math.min(samples.length, start + chunkSamples);
+            float[] chunkSamplesArray = new float[end - start];
+            System.arraycopy(samples, start, chunkSamplesArray, 0, chunkSamplesArray.length);
+            File chunkFile = new File(chunksDir, wavFile.getName().replace(".wav", "") + ".part" + (++partIndex) + ".wav");
+            WaveUtil.createWaveFile(chunkFile.getAbsolutePath(), shortsToBytes(floatToPcm16(chunkSamplesArray)), 16000, 1, 2);
+            parts.add(chunkFile);
+        }
+        return parts;
+    }
+
+    public static final class ImportedAudio {
         public final String displayName;
         public final File wavFile;
 
         public ImportedAudio(String displayName, File wavFile) {
             this.displayName = displayName;
             this.wavFile = wavFile;
-        }
-    }
-
-    public static List<File> splitWavForTranscription(Context context, File wavFile) throws IOException {
-        List<File> chunks = new ArrayList<>();
-        float[] samples = WaveUtil.getSamples(wavFile.getAbsolutePath());
-        if (samples.length == 0) {
-            chunks.add(wavFile);
-            return chunks;
-        }
-
-        int maxSamplesPerChunk = 16000 * TRANSCRIBE_CHUNK_SECONDS;
-        if (samples.length <= maxSamplesPerChunk) {
-            chunks.add(wavFile);
-            return chunks;
-        }
-
-        File chunkDir = new File(context.getFilesDir(), "transcribe-chunks");
-        if (!chunkDir.exists()) chunkDir.mkdirs();
-        clearOldChunks(chunkDir);
-
-        String base = wavFile.getName();
-        if (base.toLowerCase(Locale.US).endsWith(".wav")) {
-            base = base.substring(0, base.length() - 4);
-        }
-
-        int chunkCount = (int) Math.ceil(samples.length / (double) maxSamplesPerChunk);
-        for (int i = 0; i < chunkCount; i++) {
-            int start = i * maxSamplesPerChunk;
-            int end = Math.min(samples.length, start + maxSamplesPerChunk);
-            int len = Math.max(0, end - start);
-            if (len <= 0) break;
-            float[] chunkSamples = new float[len];
-            System.arraycopy(samples, start, chunkSamples, 0, len);
-            File chunkFile = new File(chunkDir, base + ".part-" + String.format(Locale.US, "%02d", i + 1) + ".wav");
-            WaveUtil.createWaveFile(chunkFile.getAbsolutePath(), shortsToBytes(floatToPcm16(chunkSamples)), 16000, 1, 2);
-            chunks.add(chunkFile);
-        }
-
-        return chunks;
-    }
-
-    private static void clearOldChunks(File chunkDir) {
-        File[] files = chunkDir.listFiles((dir, name) -> name.toLowerCase(Locale.US).endsWith(".wav"));
-        if (files == null) return;
-        for (File file : files) {
-            if (file != null && file.exists()) {
-                // Best-effort cleanup of prior temporary chunk files.
-                file.delete();
-            }
         }
     }
 }

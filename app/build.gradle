@@ -35,7 +35,7 @@ android {
     }
 
     androidResources {
-        noCompress += ['tflite', 'bin']
+        noCompress += ['tflite', 'bin', 'rnnn']
     }
 }
 
@@ -43,4 +43,5 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'org.tensorflow:tensorflow-lite:2.14.0'
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
+    implementation 'com.moizhassan.ffmpeg:ffmpeg-kit-16kb:6.1.1'
 }
