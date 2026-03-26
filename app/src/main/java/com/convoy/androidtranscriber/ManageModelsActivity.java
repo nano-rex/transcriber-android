@@ -26,7 +26,7 @@ public class ManageModelsActivity extends AppCompatActivity {
             "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-small-tflite/whisper-small.tflite";
     private static final String SMALL_MODEL_FILE = "whisper-small.tflite";
     private static final String MEDIUM_MODEL_URL =
-            "https://huggingface.co/cik009/whisper/resolve/main/whisper-medium.tflite?download=true";
+            "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-medium-tflite/whisper-medium.tflite";
     private static final String MEDIUM_MODEL_FILE = "whisper-medium.tflite";
 
     private EditText etSearch;
