@@ -58,9 +58,10 @@ public class ManageModelsActivity extends AppCompatActivity {
 
     private void loadRows() {
         allRows.clear();
-        allRows.add(buildBundledRow("tiny-en", "models/whisper-tiny.en.tflite", false));
-        allRows.add(buildBundledRow("tiny", "models/whisper-tiny.tflite", true));
-        allRows.add(buildHostedRow("small", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
+        allRows.add(buildBundledRow("tiny-en", "ASR", "models/whisper-tiny.en.tflite", false));
+        allRows.add(buildBundledRow("tiny", "ASR", "models/whisper-tiny.tflite", true));
+        allRows.add(buildHostedRow("small", "ASR", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
+        allRows.add(buildSummaryRulesRow());
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }
@@ -77,18 +78,23 @@ public class ManageModelsActivity extends AppCompatActivity {
         tvStatus.setText(filteredRows.isEmpty() ? "No models found." : "Models listed: " + filteredRows.size());
     }
 
-    private ModelRow buildBundledRow(String displayName, String assetPath, boolean multilingual) {
+    private ModelRow buildBundledRow(String displayName, String category, String assetPath, boolean multilingual) {
         boolean available = assetExists(assetPath);
-        return new ModelRow(displayName, available ? "Bundled" : "Missing bundled asset", multilingual,
+        return new ModelRow(displayName, category, available ? "Bundled" : "Missing bundled asset", multilingual,
                 assetPath, available, true, false, available ? "Bundled" : "Missing", false, null);
     }
 
-    private ModelRow buildHostedRow(String displayName, String fileName, String url, boolean multilingual) {
+    private ModelRow buildHostedRow(String displayName, String category, String fileName, String url, boolean multilingual) {
         File localFile = new File(ModelUtils.customModelsDir(this), fileName);
         boolean downloaded = localFile.exists();
-        return new ModelRow(displayName, downloaded ? "Downloaded" : "Not downloaded", multilingual,
+        return new ModelRow(displayName, category, downloaded ? "Downloaded" : "Not downloaded", multilingual,
                 localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
                 true, url);
+    }
+
+    private ModelRow buildSummaryRulesRow() {
+        return new ModelRow("summary-rules", "Summary", "Bundled heuristic summarizer", true,
+                "built-in", true, true, false, "Bundled", false, null);
     }
 
     private void handleRowAction(ModelRow row) {
@@ -177,6 +183,7 @@ public class ManageModelsActivity extends AppCompatActivity {
 
     public static final class ModelRow {
         public final String displayName;
+        public final String category;
         public final String state;
         public final boolean multilingual;
         public final String location;
@@ -187,10 +194,11 @@ public class ManageModelsActivity extends AppCompatActivity {
         public final boolean actionEnabled;
         public final String downloadUrl;
 
-        public ModelRow(String displayName, String state, boolean multilingual, String location,
+        public ModelRow(String displayName, String category, String state, boolean multilingual, String location,
                         boolean available, boolean bundled, boolean customFile, String actionLabel,
                         boolean actionEnabled, String downloadUrl) {
             this.displayName = displayName;
+            this.category = category;
             this.state = state;
             this.multilingual = multilingual;
             this.location = location;
@@ -203,7 +211,7 @@ public class ManageModelsActivity extends AppCompatActivity {
         }
 
         public String statusLine() {
-            return state + " | " + (multilingual ? "multilingual" : "english-only")
+            return category + " | " + state + " | " + (multilingual ? "multilingual" : "english-only")
                     + " | " + (bundled ? "built-in" : "custom");
         }
     }
