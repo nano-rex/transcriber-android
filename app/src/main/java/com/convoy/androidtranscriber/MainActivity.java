@@ -1,7 +1,6 @@
 package com.convoy.androidtranscriber;
 
 import android.app.ActivityManager;
-import android.Manifest;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -26,7 +25,6 @@ import com.convoy.androidtranscriber.util.DiarizationUtils;
 import com.convoy.androidtranscriber.util.ModelUtils;
 import com.convoy.androidtranscriber.util.ModelUtils.HardwareAssessment;
 import com.convoy.androidtranscriber.util.ModelUtils.ModelSpec;
-import com.convoy.androidtranscriber.util.RecorderUtil;
 import com.convoy.androidtranscriber.util.StorageUtils;
 import com.convoy.androidtranscriber.util.SummaryUtils;
 import com.convoy.androidtranscriber.util.WaveUtil;
@@ -53,8 +51,6 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Whisper whisper;
     private File currentImportedWav;
-    private RecorderUtil.RecorderSession recorderSession;
-    private boolean isRecording = false;
     private String recommendedTier;
     private ModelSpec selectedModel;
     private final List<ModelSpec> availableModels = new ArrayList<>();
@@ -76,15 +72,6 @@ public class MainActivity extends AppCompatActivity {
 
     private final ActivityResultLauncher<String[]> pickMediaLauncher =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::onMediaPicked);
-    private final ActivityResultLauncher<String> requestRecordPermissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-                if (granted) {
-                    startRecording();
-                } else {
-                    tvStatus.setText("Status: microphone permission denied");
-                }
-            });
-
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -97,7 +84,6 @@ public class MainActivity extends AppCompatActivity {
         spinnerModel = findViewById(R.id.spinnerModel);
         btnViewResults = findViewById(R.id.btnViewResults);
         Button btnPickFile = findViewById(R.id.btnPickFile);
-        Button btnRecord = findViewById(R.id.btnRecord);
         btnTranscribe = findViewById(R.id.btnTranscribe);
         Button btnSavedOutputs = findViewById(R.id.btnSavedOutputs);
         Button btnManageModels = findViewById(R.id.btnManageModels);
@@ -122,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
                 handler.post(() -> {
                     String safeResult = result == null ? "" : result.trim();
                     String diarizedText = buildDiarizedText(safeResult);
-                    String summaryText = SummaryUtils.buildSummaryReport(MainActivity.this, safeResult);
+                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
                     latestSummary = summaryText;
@@ -140,7 +126,6 @@ public class MainActivity extends AppCompatActivity {
         ensureBundledSampleReady();
 
         btnPickFile.setOnClickListener(v -> pickMediaLauncher.launch(new String[]{"audio/*", "video/*"}));
-        btnRecord.setOnClickListener(v -> toggleRecording(btnRecord));
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
         btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
@@ -269,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
                     tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
                     String safeResult = result == null ? "" : result.trim();
                     String diarizedText = buildDiarizedText(safeResult);
-                    String summaryText = SummaryUtils.buildSummaryReport(this, safeResult);
+                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
                     latestSummary = summaryText;
@@ -327,54 +312,6 @@ public class MainActivity extends AppCompatActivity {
         return AssetUtils.copyAssetToFile(this, assetPath, outFile);
     }
 
-    private void toggleRecording(Button btnRecord) {
-        if (isRecording) {
-            stopRecording(btnRecord);
-            return;
-        }
-        requestRecordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
-    }
-
-    private void startRecording() {
-        try {
-            File recordingsDir = new File(getFilesDir(), "recordings");
-            if (!recordingsDir.exists()) recordingsDir.mkdirs();
-            File out = new File(recordingsDir, "recording_" + System.currentTimeMillis() + ".wav");
-            recorderSession = RecorderUtil.startRecording(out);
-            isRecording = true;
-            Button btnRecord = findViewById(R.id.btnRecord);
-            btnRecord.setText("Stop recording");
-            tvStatus.setText("Status: recording...");
-            tvSelectedFile.setText("Selected file: recording in progress");
-        } catch (Exception e) {
-            tvStatus.setText("Status: failed to start recording - " + e.getMessage());
-        }
-    }
-
-    private void stopRecording(Button btnRecord) {
-        if (recorderSession == null) return;
-        new Thread(() -> {
-            try {
-                File recorded = recorderSession.stopAndSave();
-                currentImportedWav = recorded;
-                handler.post(() -> {
-                    isRecording = false;
-                    recorderSession = null;
-                    btnRecord.setText("Record audio");
-                    tvStatus.setText("Status: recording saved");
-                    tvSelectedFile.setText("Selected file: " + recorded.getAbsolutePath());
-                });
-            } catch (Exception e) {
-                handler.post(() -> {
-                    isRecording = false;
-                    recorderSession = null;
-                    btnRecord.setText("Record audio");
-                    tvStatus.setText("Status: failed to stop recording - " + e.getMessage());
-                });
-            }
-        }).start();
-    }
-
     private String buildDiarizedText(String transcript) {
         if (currentImportedWav == null || !currentImportedWav.exists()) return "";
         float[] samples = WaveUtil.getSamples(currentImportedWav.getAbsolutePath());
@@ -399,7 +336,7 @@ public class MainActivity extends AppCompatActivity {
                 copyFileCompat(currentImportedWav, enhancedOutput);
             }
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
-            writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(this, transcript));
+            writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
             writeTextFile(new File(outputsDir, base + ".diarized.txt"), diarizedText == null ? "" : diarizedText);
             writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length);
         } catch (Exception e) {
@@ -496,15 +433,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (isRecording && recorderSession != null) {
-            try {
-                recorderSession.stopAndSave();
-            } catch (Exception ignored) {
-            } finally {
-                isRecording = false;
-                recorderSession = null;
-            }
-        }
         handler.removeCallbacks(transcriptionProgressUpdater);
     }
 }
