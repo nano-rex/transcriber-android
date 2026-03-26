@@ -1,6 +1,6 @@
 package com.convoy.androidtranscriber;
 
-import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -9,6 +9,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
@@ -57,7 +58,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
         listOutputs.setOnItemClickListener((parent, view, position, id) -> {
             selectedIndex = position;
             listOutputs.setItemChecked(position, true);
-            showOutputDialog(filteredOutputs.get(position));
+            openOutput(filteredOutputs.get(position));
         });
 
         btnDelete.setOnClickListener(v -> deleteSelected());
@@ -110,24 +111,19 @@ public class SavedOutputsActivity extends AppCompatActivity {
         btnDelete.setEnabled(!filteredOutputs.isEmpty());
     }
 
-    private void showOutputDialog(SavedOutput output) {
-        StringBuilder message = new StringBuilder();
-        message.append("Transcript\n\n").append(readFile(output.transcriptFile));
-        if (output.summaryFile != null) {
-            message.append("\n\nSummary\n\n").append(readFile(output.summaryFile));
+    private void openOutput(SavedOutput output) {
+        Intent intent = new Intent(this, ResultsActivity.class);
+        intent.putExtra(ResultsActivity.EXTRA_TITLE, output.baseName);
+        if (output.transcriptFile != null) {
+            intent.putExtra(ResultsActivity.EXTRA_TRANSCRIPT_PATH, output.transcriptFile.getAbsolutePath());
         }
         if (output.diarizedFile != null) {
-            message.append("\n\nDiarized\n\n").append(readFile(output.diarizedFile));
+            intent.putExtra(ResultsActivity.EXTRA_DIARIZED_PATH, output.diarizedFile.getAbsolutePath());
         }
-        if (output.metaFile != null) {
-            message.append("\n\nMetadata\n\n").append(readFile(output.metaFile));
+        if (output.summaryFile != null) {
+            intent.putExtra(ResultsActivity.EXTRA_SUMMARY_PATH, output.summaryFile.getAbsolutePath());
         }
-
-        new AlertDialog.Builder(this)
-                .setTitle(output.baseName)
-                .setMessage(message.toString())
-                .setPositiveButton("Close", null)
-                .show();
+        startActivity(intent);
     }
 
     private void deleteSelected() {
@@ -159,15 +155,6 @@ public class SavedOutputsActivity extends AppCompatActivity {
 
     private static String baseName(String value, String suffix) {
         return value.substring(0, value.length() - suffix.length());
-    }
-
-    private static String readFile(@Nullable File file) {
-        if (file == null || !file.exists()) return "";
-        try {
-            return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
-        } catch (IOException e) {
-            return "Failed to read file: " + e.getMessage();
-        }
     }
 
     private static final class SavedOutput {

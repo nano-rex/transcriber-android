@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
@@ -22,6 +23,7 @@ import com.convoy.androidtranscriber.util.AssetUtils;
 import com.convoy.androidtranscriber.util.AudioImportUtil;
 import com.convoy.androidtranscriber.util.DiarizationUtils;
 import com.convoy.androidtranscriber.util.ModelUtils;
+import com.convoy.androidtranscriber.util.ModelUtils.HardwareAssessment;
 import com.convoy.androidtranscriber.util.ModelUtils.ModelSpec;
 import com.convoy.androidtranscriber.util.RecorderUtil;
 import com.convoy.androidtranscriber.util.SummaryUtils;
@@ -42,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvStatus;
     private Spinner spinnerModel;
     private Button btnViewResults;
+    private Button btnTranscribe;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Whisper whisper;
@@ -79,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
         btnViewResults = findViewById(R.id.btnViewResults);
         Button btnPickFile = findViewById(R.id.btnPickFile);
         Button btnRecord = findViewById(R.id.btnRecord);
-        Button btnTranscribe = findViewById(R.id.btnTranscribe);
+        btnTranscribe = findViewById(R.id.btnTranscribe);
         Button btnSavedOutputs = findViewById(R.id.btnSavedOutputs);
         Button btnManageModels = findViewById(R.id.btnManageModels);
 
@@ -124,6 +127,16 @@ public class MainActivity extends AppCompatActivity {
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
         btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
         btnViewResults.setOnClickListener(v -> openResultsWindow());
+        spinnerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+                refreshHardwareStatus();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
     }
 
     @Override
@@ -151,15 +164,14 @@ public class MainActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerModel.setAdapter(adapter);
         spinnerModel.setSelection(Math.max(0, Math.min(recommendedIndex, labels.size() - 1)));
+        refreshHardwareStatus();
     }
 
     private String buildRecommendationText(String tier) {
-        int cpuThreads = Math.max(1, Runtime.getRuntime().availableProcessors());
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        ActivityManager activityManager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        if (activityManager != null) activityManager.getMemoryInfo(memoryInfo);
-        double memGb = memoryInfo.totalMem / 1024.0 / 1024.0 / 1024.0;
-        return String.format(Locale.US, "Recommended model: %s (%d threads, %.1f GB RAM)", tier, cpuThreads, memGb);
+        HardwareAssessment assessment = ModelUtils.assessHardware(this, tier);
+        return String.format(Locale.US,
+                "Recommended model: %s (%d threads, %.1f/%.1f GB free RAM, load %.2f)",
+                tier, assessment.cpuThreads, assessment.availRamGb, assessment.totalRamGb, assessment.systemLoad);
     }
 
     private void ensureBundledSampleReady() {
@@ -206,6 +218,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         selectedModel = availableModels.get(modelIndex);
+        HardwareAssessment assessment = ModelUtils.assessHardware(this, selectedModel.tierHint());
+        if (!assessment.canRun) {
+            tvStatus.setText("Status: " + assessment.message);
+            return;
+        }
         startTimeMs = System.currentTimeMillis();
         latestTranscript = "";
         latestDiarized = "";
@@ -325,10 +342,29 @@ public class MainActivity extends AppCompatActivity {
 
     private void openResultsWindow() {
         Intent intent = new Intent(this, ResultsActivity.class);
+        intent.putExtra(ResultsActivity.EXTRA_TITLE, currentImportedWav == null ? "Latest Result" : currentImportedWav.getName());
         intent.putExtra(ResultsActivity.EXTRA_TRANSCRIPT, latestTranscript);
         intent.putExtra(ResultsActivity.EXTRA_DIARIZED, latestDiarized);
         intent.putExtra(ResultsActivity.EXTRA_SUMMARY, latestSummary);
         startActivity(intent);
+    }
+
+    private void refreshHardwareStatus() {
+        int modelIndex = spinnerModel.getSelectedItemPosition();
+        if (modelIndex < 0 || modelIndex >= availableModels.size()) {
+            btnTranscribe.setEnabled(false);
+            return;
+        }
+        ModelSpec spec = availableModels.get(modelIndex);
+        HardwareAssessment assessment = ModelUtils.assessHardware(this, spec.tierHint());
+        btnTranscribe.setEnabled(assessment.canRun);
+        if (assessment.canRun) {
+            tvStatus.setText(String.format(Locale.US,
+                    "Status: ready. Using %.1f GB RAM, %.1f GB free, model needs %.1f GB",
+                    assessment.usedRamGb, assessment.availRamGb, assessment.estimatedModelRamGb));
+        } else {
+            tvStatus.setText("Status: " + assessment.message);
+        }
     }
 
     private void writeMetadataFile(File file, String transcript, String diarizedText, int sampleCount) throws IOException {
