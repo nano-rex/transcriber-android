@@ -4,7 +4,8 @@ Android client for the `Transcriber Desktop` project. It is written in plain Jav
 
 ## What It Does
 - offline on-device Whisper TFLite transcription
-- bundled `tiny-en`, `tiny`, and optional bundled `small`
+- bundled `tiny-en` and `tiny` by default
+- optional local `small` model for manual testing
 - local audio enhancement before transcription
 - local diarized transcript output
 - local summary and key points
@@ -53,12 +54,24 @@ Bundled by default:
 - `whisper-tiny.en.tflite`
 - `whisper-tiny.tflite`
 
-Optional bundled local model:
-- `whisper-small.tflite`
+Optional local test model:
+- `local-models/whisper-small.tflite`
 
-If `app/src/main/assets/models/whisper-small.tflite` exists, the app exposes the `small` tier automatically.
+If you want to test the larger local model without committing it, keep it in:
 
-The desktop setup script can stage this file:
+```text
+local-models/whisper-small.tflite
+```
+
+Then move or copy it into:
+
+```text
+app/src/main/assets/models/whisper-small.tflite
+```
+
+before building a test APK.
+
+The desktop setup script can stage this file locally:
 
 ```bash
 cd /home/user/github/transcriber-desktop
