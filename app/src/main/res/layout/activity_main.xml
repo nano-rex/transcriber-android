@@ -66,49 +66,12 @@
             android:text="Transcribe" />
 
         <Button
-            android:id="@+id/btnToggleTranscript"
+            android:id="@+id/btnViewResults"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Transcript" />
-
-        <TextView
-            android:id="@+id/tvTranscript"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textIsSelectable="true"
-            android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnToggleDiarized"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Diarized Transcript" />
-
-        <TextView
-            android:id="@+id/tvDiarized"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textIsSelectable="true"
-            android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnToggleSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Overview + Key Points" />
-
-        <TextView
-            android:id="@+id/tvSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textIsSelectable="true"
-            android:visibility="gone" />
+            android:enabled="false"
+            android:text="View Results" />
 
         <Button
             android:id="@+id/btnSavedOutputs"
