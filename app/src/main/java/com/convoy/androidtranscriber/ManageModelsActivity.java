@@ -28,6 +28,9 @@ public class ManageModelsActivity extends AppCompatActivity {
     private static final String MEDIUM_MODEL_URL =
             "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-medium-tflite/whisper-medium.tflite";
     private static final String MEDIUM_MODEL_FILE = "whisper-medium.tflite";
+    private static final String QWEN_1_5B_URL =
+            "https://github.com/nano-rex/transcriber-desktop/releases/download/desktop-model-qwen2.5-1.5b-instruct/Qwen2.5-1.5B-Instruct.tar.gz";
+    private static final String QWEN_1_5B_FILE = "Qwen2.5-1.5B-Instruct.tar.gz";
 
     private EditText etSearch;
     private TextView tvStatus;
@@ -66,6 +69,7 @@ public class ManageModelsActivity extends AppCompatActivity {
         allRows.add(buildHostedRow("small", "ASR", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
         allRows.add(buildHostedRow("medium", "ASR", MEDIUM_MODEL_FILE, MEDIUM_MODEL_URL, true));
         allRows.add(buildSummaryRulesRow());
+        allRows.add(buildHostedSummaryArchiveRow("qwen-1.5b", QWEN_1_5B_FILE, QWEN_1_5B_URL));
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }
@@ -85,7 +89,7 @@ public class ManageModelsActivity extends AppCompatActivity {
     private ModelRow buildBundledRow(String displayName, String category, String assetPath, boolean multilingual) {
         boolean available = assetExists(assetPath);
         return new ModelRow(displayName, category, available ? "Bundled" : "Missing bundled asset", multilingual,
-                assetPath, available, true, false, available ? "Bundled" : "Missing", false, null);
+                assetPath, available, true, false, available ? "Bundled" : "Missing", false, null, true);
     }
 
     private ModelRow buildHostedRow(String displayName, String category, String fileName, String url, boolean multilingual) {
@@ -93,12 +97,23 @@ public class ManageModelsActivity extends AppCompatActivity {
         boolean downloaded = localFile.exists();
         return new ModelRow(displayName, category, downloaded ? "Downloaded" : "Not downloaded", multilingual,
                 localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
-                true, url);
+                true, url, true);
     }
 
     private ModelRow buildSummaryRulesRow() {
         return new ModelRow("summary-rules", "Summary", "Bundled heuristic summarizer", true,
-                "built-in", true, true, false, "Bundled", false, null);
+                "built-in", true, true, false, "Bundled", false, null, true);
+    }
+
+    private ModelRow buildHostedSummaryArchiveRow(String displayName, String fileName, String url) {
+        File dir = new File(getFilesDir(), "summary-models");
+        if (!dir.exists()) dir.mkdirs();
+        File localFile = new File(dir, fileName);
+        boolean downloaded = localFile.exists();
+        String state = downloaded ? "Downloaded archive (not active on Android yet)" : "Not downloaded";
+        return new ModelRow(displayName, "Summary", state, true,
+                localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
+                true, url, false);
     }
 
     private void handleRowAction(ModelRow row) {
@@ -207,10 +222,11 @@ public class ManageModelsActivity extends AppCompatActivity {
         public final String actionLabel;
         public final boolean actionEnabled;
         public final String downloadUrl;
+        public final boolean runnableOnAndroid;
 
         public ModelRow(String displayName, String category, String state, boolean multilingual, String location,
                         boolean available, boolean bundled, boolean customFile, String actionLabel,
-                        boolean actionEnabled, String downloadUrl) {
+                        boolean actionEnabled, String downloadUrl, boolean runnableOnAndroid) {
             this.displayName = displayName;
             this.category = category;
             this.state = state;
@@ -222,11 +238,13 @@ public class ManageModelsActivity extends AppCompatActivity {
             this.actionLabel = actionLabel;
             this.actionEnabled = actionEnabled;
             this.downloadUrl = downloadUrl;
+            this.runnableOnAndroid = runnableOnAndroid;
         }
 
         public String statusLine() {
             return category + " | " + state + " | " + (multilingual ? "multilingual" : "english-only")
-                    + " | " + (bundled ? "built-in" : "custom");
+                    + " | " + (bundled ? "built-in" : "custom")
+                    + " | " + (runnableOnAndroid ? "active" : "staged-only");
         }
     }
 }
