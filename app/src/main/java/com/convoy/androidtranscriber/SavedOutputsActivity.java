@@ -12,10 +12,9 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.convoy.androidtranscriber.util.StorageUtils;
+
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,7 +70,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
         selectedIndex = -1;
         listOutputs.clearChoices();
 
-        File outputsDir = new File(getFilesDir(), "outputs");
+        File outputsDir = StorageUtils.outputsDir(this);
         Map<String, SavedOutput> grouped = new HashMap<>();
         File[] files = outputsDir.listFiles();
         if (files != null) {
@@ -89,6 +88,9 @@ public class SavedOutputsActivity extends AppCompatActivity {
                 } else if (name.endsWith(".meta.json")) {
                     SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".meta.json"), SavedOutput::new);
                     entry.metaFile = file;
+                } else if (name.endsWith(".enhanced.wav")) {
+                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".enhanced.wav"), SavedOutput::new);
+                    entry.enhancedAudioFile = file;
                 }
             }
         }
@@ -141,6 +143,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
                     deleteIfExists(output.summaryFile);
                     deleteIfExists(output.diarizedFile);
                     deleteIfExists(output.metaFile);
+                    deleteIfExists(output.enhancedAudioFile);
                     loadOutputs();
                 })
                 .show();
@@ -163,6 +166,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
         File summaryFile;
         File diarizedFile;
         File metaFile;
+        File enhancedAudioFile;
 
         SavedOutput(String baseName) {
             this.baseName = baseName;
@@ -174,6 +178,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
             if (summaryFile != null) latest = Math.max(latest, summaryFile.lastModified());
             if (diarizedFile != null) latest = Math.max(latest, diarizedFile.lastModified());
             if (metaFile != null) latest = Math.max(latest, metaFile.lastModified());
+            if (enhancedAudioFile != null) latest = Math.max(latest, enhancedAudioFile.lastModified());
             return latest;
         }
 

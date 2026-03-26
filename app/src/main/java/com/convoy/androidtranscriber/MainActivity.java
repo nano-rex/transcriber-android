@@ -3,6 +3,7 @@ package com.convoy.androidtranscriber;
 import android.app.ActivityManager;
 import android.Manifest;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -26,11 +27,14 @@ import com.convoy.androidtranscriber.util.ModelUtils;
 import com.convoy.androidtranscriber.util.ModelUtils.HardwareAssessment;
 import com.convoy.androidtranscriber.util.ModelUtils.ModelSpec;
 import com.convoy.androidtranscriber.util.RecorderUtil;
+import com.convoy.androidtranscriber.util.StorageUtils;
 import com.convoy.androidtranscriber.util.SummaryUtils;
 import com.convoy.androidtranscriber.util.WaveUtil;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +62,17 @@ public class MainActivity extends AppCompatActivity {
     private String latestTranscript = "";
     private String latestDiarized = "";
     private String latestSummary = "";
+    private int defaultStatusColor;
+    private final Runnable transcriptionProgressUpdater = new Runnable() {
+        @Override
+        public void run() {
+            if (!whisper.isInProgress()) return;
+            long elapsed = System.currentTimeMillis() - startTimeMs;
+            int percent = estimateTranscriptionPercent(elapsed);
+            tvStatus.setText(String.format(Locale.US, "Status: transcribing... %d%%", percent));
+            handler.postDelayed(this, 700);
+        }
+    };
 
     private final ActivityResultLauncher<String[]> pickMediaLauncher =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::onMediaPicked);
@@ -78,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
         tvModelRecommendation = findViewById(R.id.tvModelRecommendation);
         tvSelectedFile = findViewById(R.id.tvSelectedFile);
         tvStatus = findViewById(R.id.tvStatus);
+        defaultStatusColor = tvStatus.getCurrentTextColor();
         spinnerModel = findViewById(R.id.spinnerModel);
         btnViewResults = findViewById(R.id.btnViewResults);
         Button btnPickFile = findViewById(R.id.btnPickFile);
@@ -92,8 +108,9 @@ public class MainActivity extends AppCompatActivity {
             public void onUpdateReceived(String message) {
                 handler.post(() -> {
                     if (Whisper.MSG_PROCESSING_DONE.equals(message)) {
+                        handler.removeCallbacks(transcriptionProgressUpdater);
                         long elapsed = System.currentTimeMillis() - startTimeMs;
-                        tvStatus.setText("Status: processing done in " + elapsed + " ms");
+                        tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
                     } else {
                         tvStatus.setText("Status: " + message);
                     }
@@ -111,6 +128,7 @@ public class MainActivity extends AppCompatActivity {
                     latestSummary = summaryText;
                     btnViewResults.setEnabled(true);
                     writeOutputsIfPossible(safeResult, diarizedText);
+                    setStatusNormal();
                     openResultsWindow();
                 });
             }
@@ -181,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
             currentImportedWav = sampleOut;
             tvSelectedFile.setText("Selected file: bundled sample jfk.wav");
         } catch (IOException e) {
+            setStatusWarning();
             tvStatus.setText("Status: failed to prepare bundled sample: " + e.getMessage());
         }
     }
@@ -188,6 +207,7 @@ public class MainActivity extends AppCompatActivity {
     private void onMediaPicked(Uri uri) {
         if (uri == null) return;
         tvStatus.setText("Status: importing media...");
+        setStatusNormal();
         new Thread(() -> {
             try {
                 getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -195,13 +215,15 @@ public class MainActivity extends AppCompatActivity {
             }
 
             try {
-                AudioImportUtil.ImportedAudio imported = AudioImportUtil.importToWav(this, uri);
+                AudioImportUtil.ImportedAudio imported = AudioImportUtil.importToWav(this, uri, (percent, stage) ->
+                        handler.post(() -> tvStatus.setText("Status: importing media... " + percent + "% (" + stage + ")")));
                 currentImportedWav = imported.wavFile;
                 handler.post(() -> {
-                    tvSelectedFile.setText("Selected file: " + imported.displayName + "\nPrepared WAV: " + imported.wavFile.getAbsolutePath());
-                    tvStatus.setText("Status: media imported and normalized to WAV");
+                    tvSelectedFile.setText("Selected file: " + imported.displayName + "\nEnhanced WAV: " + imported.wavFile.getAbsolutePath());
+                    tvStatus.setText("Status: media imported and normalized to WAV (100%)");
                 });
             } catch (IOException e) {
+                handler.post(this::setStatusWarning);
                 handler.post(() -> tvStatus.setText("Status: import failed - " + e.getMessage()));
             }
         }).start();
@@ -219,16 +241,18 @@ public class MainActivity extends AppCompatActivity {
         }
         selectedModel = availableModels.get(modelIndex);
         HardwareAssessment assessment = ModelUtils.assessHardware(this, selectedModel.tierHint());
-        if (!assessment.canRun) {
-            tvStatus.setText("Status: " + assessment.message);
-            return;
-        }
         startTimeMs = System.currentTimeMillis();
         latestTranscript = "";
         latestDiarized = "";
         latestSummary = "";
         btnViewResults.setEnabled(false);
-        tvStatus.setText("Status: preparing model...");
+        if (assessment.canRun) {
+            setStatusNormal();
+            tvStatus.setText("Status: preparing model...");
+        } else {
+            setStatusWarning();
+            tvStatus.setText("Status: warning - " + assessment.message);
+        }
 
         new Thread(() -> {
             try {
@@ -237,8 +261,10 @@ public class MainActivity extends AppCompatActivity {
                 whisper.unloadModel();
                 whisper.loadModel(modelFile.getAbsolutePath(), vocabFile.getAbsolutePath(), selectedModel.multilingual);
                 whisper.setFilePath(currentImportedWav.getAbsolutePath());
+                handler.post(transcriptionProgressUpdater);
                 whisper.start();
             } catch (Exception e) {
+                handler.post(this::setStatusWarning);
                 handler.post(() -> tvStatus.setText("Status: failed to start transcription - " + e.getMessage()));
             }
         }).start();
@@ -318,18 +344,25 @@ public class MainActivity extends AppCompatActivity {
     private void writeOutputsIfPossible(String transcript, String diarizedText) {
         if (currentImportedWav == null) return;
         try {
-            File outputsDir = new File(getFilesDir(), "outputs");
+            File outputsDir = StorageUtils.outputsDir(this);
             if (!outputsDir.exists()) outputsDir.mkdirs();
             String base = currentImportedWav.getName();
             if (base.endsWith(".wav")) base = base.substring(0, base.length() - 4);
             float[] samples = WaveUtil.getSamples(currentImportedWav.getAbsolutePath());
             List<DiarizationUtils.TextSegment> segments = DiarizationUtils.buildTextSegments(transcript, samples.length);
             String timestampedTranscript = DiarizationUtils.buildTimestampedTranscript(segments);
+            File enhancedOutput = new File(outputsDir, base + ".enhanced.wav");
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                Files.copy(currentImportedWav.toPath(), enhancedOutput.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                copyFileCompat(currentImportedWav, enhancedOutput);
+            }
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
             writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
             writeTextFile(new File(outputsDir, base + ".diarized.txt"), diarizedText == null ? "" : diarizedText);
             writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length);
         } catch (Exception e) {
+            setStatusWarning();
             tvStatus.setText("Status: transcript done, but failed to write outputs: " + e.getMessage());
         }
     }
@@ -352,18 +385,53 @@ public class MainActivity extends AppCompatActivity {
     private void refreshHardwareStatus() {
         int modelIndex = spinnerModel.getSelectedItemPosition();
         if (modelIndex < 0 || modelIndex >= availableModels.size()) {
-            btnTranscribe.setEnabled(false);
+            btnTranscribe.setEnabled(true);
             return;
         }
         ModelSpec spec = availableModels.get(modelIndex);
         HardwareAssessment assessment = ModelUtils.assessHardware(this, spec.tierHint());
-        btnTranscribe.setEnabled(assessment.canRun);
         if (assessment.canRun) {
+            setStatusNormal();
             tvStatus.setText(String.format(Locale.US,
                     "Status: ready. Using %.1f GB RAM, %.1f GB free, model needs %.1f GB",
                     assessment.usedRamGb, assessment.availRamGb, assessment.estimatedModelRamGb));
         } else {
-            tvStatus.setText("Status: " + assessment.message);
+            setStatusWarning();
+            tvStatus.setText("Status: warning - " + assessment.message);
+        }
+    }
+
+    private int estimateTranscriptionPercent(long elapsedMs) {
+        if (currentImportedWav == null || selectedModel == null) return 5;
+        double durationSeconds = WaveUtil.getSamples(currentImportedWav.getAbsolutePath()).length / 16000.0;
+        double factor = estimatedRealtimeFactor(selectedModel.tierHint());
+        long estimatedTotalMs = Math.max(6000L, Math.round(durationSeconds * factor * 1000.0));
+        int percent = (int) Math.min(95, Math.max(1, (elapsedMs * 100) / estimatedTotalMs));
+        return percent;
+    }
+
+    private double estimatedRealtimeFactor(String tier) {
+        String normalized = tier == null ? "" : tier.toLowerCase(Locale.US);
+        if (normalized.contains("medium")) return 2.8;
+        if (normalized.contains("small")) return 1.7;
+        return 1.1;
+    }
+
+    private void setStatusWarning() {
+        tvStatus.setTextColor(Color.RED);
+    }
+
+    private void setStatusNormal() {
+        tvStatus.setTextColor(defaultStatusColor);
+    }
+
+    private void copyFileCompat(File source, File target) throws IOException {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(source);
+             java.io.FileOutputStream out = new java.io.FileOutputStream(target)) {
+            byte[] buffer = new byte[8192];
+            for (int read; (read = in.read(buffer)) != -1; ) {
+                out.write(buffer, 0, read);
+            }
         }
     }
 
@@ -395,5 +463,6 @@ public class MainActivity extends AppCompatActivity {
                 recorderSession = null;
             }
         }
+        handler.removeCallbacks(transcriptionProgressUpdater);
     }
 }

@@ -25,9 +25,18 @@ public final class AudioImportUtil {
 
     private AudioImportUtil() {}
 
+    public interface ProgressListener {
+        void onProgress(int percent, String stage);
+    }
+
     public static ImportedAudio importToWav(Context context, Uri uri) throws IOException {
+        return importToWav(context, uri, null);
+    }
+
+    public static ImportedAudio importToWav(Context context, Uri uri, ProgressListener listener) throws IOException {
         String displayName = queryDisplayName(context, uri);
         if (displayName == null) displayName = "imported_audio";
+        notifyProgress(listener, 5, "preparing import");
 
         File importsDir = new File(context.getFilesDir(), "imports");
         if (!importsDir.exists()) importsDir.mkdirs();
@@ -37,37 +46,53 @@ public final class AudioImportUtil {
 
         if (lower.endsWith(".wav")) {
             File rawCopy = new File(importsDir, sanitizeBaseName(displayName) + ".source.wav");
-            copyUriToFile(context, uri, rawCopy);
-            normalizeWavTo16kMono(rawCopy, outFile);
+            copyUriToFile(context, uri, rawCopy, listener);
+            normalizeWavTo16kMono(rawCopy, outFile, listener);
+            notifyProgress(listener, 100, "import complete");
             return new ImportedAudio(displayName, outFile);
         }
 
-        decodeMediaTo16kMonoWav(context, uri, outFile);
+        decodeMediaTo16kMonoWav(context, uri, outFile, listener);
+        notifyProgress(listener, 100, "import complete");
         return new ImportedAudio(displayName, outFile);
     }
 
-    private static void copyUriToFile(Context context, Uri uri, File target) throws IOException {
+    private static void copyUriToFile(Context context, Uri uri, File target, ProgressListener listener) throws IOException {
+        long totalBytes = -1L;
+        try (var descriptor = context.getContentResolver().openAssetFileDescriptor(uri, "r")) {
+            if (descriptor != null) totalBytes = descriptor.getLength();
+        } catch (Exception ignored) {
+        }
         try (var in = context.getContentResolver().openInputStream(uri);
              var out = new FileOutputStream(target)) {
             if (in == null) throw new IOException("Unable to open input stream");
             byte[] buffer = new byte[8192];
             int read;
+            long copied = 0L;
             while ((read = in.read(buffer)) != -1) {
                 out.write(buffer, 0, read);
+                copied += read;
+                if (totalBytes > 0) {
+                    int percent = 5 + (int) Math.min(45, (copied * 45) / totalBytes);
+                    notifyProgress(listener, percent, "copying media");
+                }
             }
         }
     }
 
-    private static void normalizeWavTo16kMono(File source, File target) throws IOException {
+    private static void normalizeWavTo16kMono(File source, File target, ProgressListener listener) throws IOException {
+        notifyProgress(listener, 60, "enhancing audio");
         float[] sourceSamples = WaveUtil.getSamples(source.getAbsolutePath());
         if (sourceSamples.length == 0) throw new IOException("Unable to decode wav samples");
         short[] pcm16 = floatToPcm16(enhanceForSpeech(resampleLinear(sourceSamples, 16000, 16000)));
+        notifyProgress(listener, 90, "writing enhanced wav");
         WaveUtil.createWaveFile(target.getAbsolutePath(), shortsToBytes(pcm16), 16000, 1, 2);
     }
 
-    private static void decodeMediaTo16kMonoWav(Context context, Uri uri, File outFile) throws IOException {
+    private static void decodeMediaTo16kMonoWav(Context context, Uri uri, File outFile, ProgressListener listener) throws IOException {
         MediaExtractor extractor = new MediaExtractor();
         try {
+            notifyProgress(listener, 10, "reading media");
             extractor.setDataSource(context, uri, null);
             int audioTrack = selectAudioTrack(extractor);
             if (audioTrack < 0) throw new IOException("No audio track found in selected media");
@@ -87,6 +112,7 @@ public final class AudioImportUtil {
             boolean outputDone = false;
             int sourceSampleRate = format.containsKey(MediaFormat.KEY_SAMPLE_RATE) ? format.getInteger(MediaFormat.KEY_SAMPLE_RATE) : 16000;
             int channelCount = format.containsKey(MediaFormat.KEY_CHANNEL_COUNT) ? format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) : 1;
+            int decodePercent = 15;
 
             while (!outputDone) {
                 if (!inputDone) {
@@ -118,6 +144,10 @@ public final class AudioImportUtil {
                         pcmOut.write(chunk);
                     }
                     codec.releaseOutputBuffer(outputIndex, false);
+                    if (decodePercent < 70) {
+                        decodePercent += 2;
+                        notifyProgress(listener, decodePercent, "decoding media");
+                    }
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         outputDone = true;
                     }
@@ -130,8 +160,10 @@ public final class AudioImportUtil {
             short[] decoded = bytesToShorts(pcmOut.toByteArray());
             short[] mono = downmixToMono(decoded, channelCount);
             float[] monoFloat = pcm16ToFloat(mono);
+            notifyProgress(listener, 75, "enhancing audio");
             float[] resampled = enhanceForSpeech(resampleLinear(monoFloat, sourceSampleRate, 16000));
             short[] finalPcm = floatToPcm16(resampled);
+            notifyProgress(listener, 92, "writing enhanced wav");
             WaveUtil.createWaveFile(outFile.getAbsolutePath(), shortsToBytes(finalPcm), 16000, 1, 2);
         } catch (Exception e) {
             throw new IOException("Failed to import media: " + e.getMessage(), e);
@@ -297,6 +329,12 @@ public final class AudioImportUtil {
             output[i] = (float) Math.tanh(sample * 1.4f) / 1.05f;
         }
         return output;
+    }
+
+    private static void notifyProgress(ProgressListener listener, int percent, String stage) {
+        if (listener != null) {
+            listener.onProgress(Math.max(0, Math.min(100, percent)), stage);
+        }
     }
 
     public static class ImportedAudio {
