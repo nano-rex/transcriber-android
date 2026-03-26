@@ -44,4 +44,5 @@ dependencies {
     implementation 'org.tensorflow:tensorflow-lite:2.14.0'
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
     implementation 'com.moizhassan.ffmpeg:ffmpeg-kit-16kb:6.1.1'
+    implementation 'com.github.gkonovalov.android-vad:webrtc:2.0.10'
 }

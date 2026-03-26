@@ -7,6 +7,7 @@ Android client for the `Transcriber Desktop` project. It is written in plain Jav
 - bundled `tiny-en` and `tiny` by default
 - optional local `small` model for manual testing
 - local audio enhancement with bundled AI denoise before transcription
+- settings page with AI enhance and trimming toggles
 - local diarized transcript output
 - local summary and key points
 - saved outputs screen with search and delete
@@ -86,7 +87,7 @@ You can also import extra `.tflite` models from inside the app using `Manage Mod
 ## App Flow
 1. Choose a bundled or imported model.
 2. Pick media or record audio.
-3. The app converts audio to enhanced 16 kHz mono WAV and runs bundled AI denoise.
+3. The app applies settings-driven preprocessing: AI enhance voice and optional trimming.
 4. Transcription runs fully on-device.
 5. Transcript, diarized transcript, summary, and metadata are saved locally.
 

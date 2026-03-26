@@ -19,6 +19,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.convoy.androidtranscriber.asr.Whisper;
+import com.convoy.androidtranscriber.util.AppSettings;
 import com.convoy.androidtranscriber.util.AssetUtils;
 import com.convoy.androidtranscriber.util.AudioImportUtil;
 import com.convoy.androidtranscriber.util.DiarizationUtils;
@@ -87,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
         btnTranscribe = findViewById(R.id.btnTranscribe);
         Button btnSavedOutputs = findViewById(R.id.btnSavedOutputs);
         Button btnManageModels = findViewById(R.id.btnManageModels);
+        Button btnSettings = findViewById(R.id.btnSettings);
 
         whisper = new Whisper(this);
         whisper.setListener(new Whisper.WhisperListener() {
@@ -129,6 +131,7 @@ public class MainActivity extends AppCompatActivity {
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
         btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
+        btnSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         btnViewResults.setOnClickListener(v -> openResultsWindow());
         spinnerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override

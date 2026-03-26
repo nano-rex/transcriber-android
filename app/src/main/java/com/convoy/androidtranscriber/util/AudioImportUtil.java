@@ -51,15 +51,26 @@ public final class AudioImportUtil {
         String lower = displayName.toLowerCase(Locale.US);
         File outFile = new File(importsDir, sanitizeBaseName(displayName) + ".wav");
 
+        boolean aiEnhance = AppSettings.isAiEnhanceEnabled(context);
+        boolean trimEnabled = AppSettings.isTrimEnabled(context);
+
         if (lower.endsWith(".wav")) {
             File rawCopy = new File(importsDir, sanitizeBaseName(displayName) + ".source.wav");
             copyUriToFile(context, uri, rawCopy, listener);
-            normalizeWavTo16kMono(context, rawCopy, outFile, listener);
+            normalizeWavTo16kMono(context, rawCopy, outFile, listener, aiEnhance);
+            if (trimEnabled) {
+                notifyProgress(listener, 98, "trimming speech");
+                outFile = trimIfEnabled(outFile);
+            }
             notifyProgress(listener, 100, "import complete");
             return new ImportedAudio(displayName, outFile);
         }
 
-        decodeMediaTo16kMonoWav(context, uri, outFile, listener);
+        decodeMediaTo16kMonoWav(context, uri, outFile, listener, aiEnhance);
+        if (trimEnabled) {
+            notifyProgress(listener, 98, "trimming speech");
+            outFile = trimIfEnabled(outFile);
+        }
         notifyProgress(listener, 100, "import complete");
         return new ImportedAudio(displayName, outFile);
     }
@@ -87,7 +98,7 @@ public final class AudioImportUtil {
         }
     }
 
-    private static void normalizeWavTo16kMono(Context context, File source, File target, ProgressListener listener) throws IOException {
+    private static void normalizeWavTo16kMono(Context context, File source, File target, ProgressListener listener, boolean aiEnhance) throws IOException {
         notifyProgress(listener, 55, "enhancing audio");
         float[] sourceSamples = WaveUtil.getSamples(source.getAbsolutePath());
         if (sourceSamples.length == 0) throw new IOException("Unable to decode wav samples");
@@ -95,10 +106,10 @@ public final class AudioImportUtil {
         File staged = new File(target.getParentFile(), target.getName() + ".pre_ai.wav");
         WaveUtil.createWaveFile(staged.getAbsolutePath(), shortsToBytes(pcm16), 16000, 1, 2);
         notifyProgress(listener, 90, "ai denoise");
-        finalizeWithAiDenoise(context, staged, target, listener);
+        finalizeWithAiDenoise(context, staged, target, listener, aiEnhance);
     }
 
-    private static void decodeMediaTo16kMonoWav(Context context, Uri uri, File outFile, ProgressListener listener) throws IOException {
+    private static void decodeMediaTo16kMonoWav(Context context, Uri uri, File outFile, ProgressListener listener, boolean aiEnhance) throws IOException {
         MediaExtractor extractor = new MediaExtractor();
         try {
             notifyProgress(listener, 10, "reading media");
@@ -175,7 +186,7 @@ public final class AudioImportUtil {
             File staged = new File(outFile.getParentFile(), outFile.getName() + ".pre_ai.wav");
             WaveUtil.createWaveFile(staged.getAbsolutePath(), shortsToBytes(finalPcm), 16000, 1, 2);
             notifyProgress(listener, 92, "ai denoise");
-            finalizeWithAiDenoise(context, staged, outFile, listener);
+            finalizeWithAiDenoise(context, staged, outFile, listener, aiEnhance);
         } catch (Exception e) {
             throw new IOException("Failed to import media: " + e.getMessage(), e);
         } finally {
@@ -183,10 +194,14 @@ public final class AudioImportUtil {
         }
     }
 
-    private static void finalizeWithAiDenoise(Context context, File stagedWav, File outFile, ProgressListener listener) throws IOException {
+    private static void finalizeWithAiDenoise(Context context, File stagedWav, File outFile, ProgressListener listener, boolean aiEnhance) throws IOException {
         try {
-            File modelFile = ensureAiDenoiseModel(context);
-            aiDenoiseWav(stagedWav, outFile, modelFile);
+            if (aiEnhance) {
+                File modelFile = ensureAiDenoiseModel(context);
+                aiDenoiseWav(stagedWav, outFile, modelFile);
+            } else {
+                java.nio.file.Files.copy(stagedWav.toPath(), outFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (Exception e) {
             Log.w(TAG, "AI denoise failed, keeping staged wav", e);
             try {
@@ -197,7 +212,13 @@ public final class AudioImportUtil {
         } finally {
             stagedWav.delete();
         }
-        notifyProgress(listener, 97, "writing enhanced wav");
+        notifyProgress(listener, 97, aiEnhance ? "writing enhanced wav" : "writing wav");
+    }
+
+    private static File trimIfEnabled(File wavFile) throws IOException {
+        File trimmed = new File(wavFile.getParentFile(), wavFile.getName().replace(".wav", ".trimmed.wav"));
+        AudioTrimUtil.trimQuietSections(wavFile, trimmed);
+        return trimmed;
     }
 
     private static File ensureAiDenoiseModel(Context context) throws IOException {
