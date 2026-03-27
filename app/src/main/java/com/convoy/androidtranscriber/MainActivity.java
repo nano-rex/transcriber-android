@@ -154,12 +154,12 @@ public class MainActivity extends AppCompatActivity {
     private void setupModelSpinner() {
         availableModels.clear();
         availableModels.addAll(ModelUtils.availableModels(this));
-        if (availableModels.isEmpty()) {
-            availableModels.add(new ModelSpec(ModelUtils.TINY, ModelUtils.TINY, "models/ggml-tiny.bin", true, true));
-        }
 
         List<String> labels = new ArrayList<>();
         int recommendedIndex = 0;
+        if (availableModels.isEmpty()) {
+            labels.add("No model installed");
+        }
         for (int i = 0; i < availableModels.size(); i++) {
             ModelSpec spec = availableModels.get(i);
             labels.add(spec.label + (spec.multilingual ? " [multilingual]" : " [english-only]"));
@@ -170,11 +170,17 @@ public class MainActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerModel.setAdapter(adapter);
         spinnerModel.setSelection(Math.max(0, Math.min(recommendedIndex, labels.size() - 1)));
+        spinnerModel.setEnabled(!availableModels.isEmpty());
+        btnTranscribe.setEnabled(!availableModels.isEmpty());
+        tvModelRecommendation.setText(buildRecommendationText(recommendedTier));
         refreshHardwareStatus();
     }
 
     private String buildRecommendationText(String tier) {
         HardwareAssessment assessment = ModelUtils.assessHardware(this, tier);
+        if (availableModels.isEmpty()) {
+            return "Recommended model: install tiny or tiny-en in Manage Models";
+        }
         return String.format(Locale.US,
                 "Recommended model: %s (%d threads, %.1f/%.1f GB free RAM, load %.2f)",
                 tier, assessment.cpuThreads, assessment.availRamGb, assessment.totalRamGb, assessment.systemLoad);
@@ -223,6 +229,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         int modelIndex = spinnerModel.getSelectedItemPosition();
+        if (availableModels.isEmpty()) {
+            tvStatus.setText("Status: no model installed. Open Manage Models and download tiny or tiny-en first");
+            setStatusWarning();
+            return;
+        }
         if (modelIndex < 0 || modelIndex >= availableModels.size()) {
             tvStatus.setText("Status: pick a model first");
             return;
@@ -360,9 +371,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshHardwareStatus() {
+        if (availableModels.isEmpty()) {
+            setStatusWarning();
+            tvStatus.setText("Status: no model installed. Open Manage Models to download tiny or tiny-en");
+            btnTranscribe.setEnabled(false);
+            return;
+        }
         int modelIndex = spinnerModel.getSelectedItemPosition();
         if (modelIndex < 0 || modelIndex >= availableModels.size()) {
-            btnTranscribe.setEnabled(true);
+            btnTranscribe.setEnabled(false);
             return;
         }
         ModelSpec spec = availableModels.get(modelIndex);

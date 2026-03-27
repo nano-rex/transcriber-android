@@ -4,7 +4,7 @@ Android client for `Transcriber Desktop`, built from the shell with Gradle. The 
 
 ## What It Does
 - offline on-device transcription with bundled `whisper.cpp` models
-- bundled `tiny-en` and `tiny` by default
+- no ASR models bundled by default
 - local audio enhancement and optional trimming before transcription
 - local diarized transcript output
 - local heuristic summary and key points
@@ -15,7 +15,7 @@ Android client for `Transcriber Desktop`, built from the shell with Gradle. The 
 - `app/src/main/java/com/convoy/androidtranscriber/` app code
 - `app/src/main/java/com/convoy/androidtranscriber/engine/` Java bridge to `whisper.cpp`
 - `app/src/main/cpp/` vendored `whisper.cpp` native build files
-- `app/src/main/assets/models/` bundled `.bin` Whisper models
+- `app/src/main/assets/models/` optional bundled `.bin` Whisper models if you choose to add them later
 - `app/src/main/assets/audio/` sample audio
 - `app/src/main/assets/denoise/` bundled RNNoise model for AI denoise
 - `app/src/main/res/` layouts and resources
@@ -46,14 +46,16 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Offline Models
-Bundled by default:
+Default install ships with zero ASR models.
+
+Use `Manage Models` inside the app to download one of these hosted models:
 - `ggml-tiny.en.bin`
 - `ggml-tiny.bin`
 
-Model selection is handled inside the app. At this stage the bundled choices are the two tiny models only.
+After download, the model is stored locally on the device and used fully offline.
 
 ## App Flow
-1. Choose a bundled model.
+1. Download and choose an installed model.
 2. Pick media from the device.
 3. The app optionally enhances and trims audio according to settings.
 4. Transcription runs locally through `whisper.cpp`.
@@ -71,4 +73,4 @@ The app writes local output groups using the WAV base name:
 - This app is intentionally minimal.
 - Diarization is local and approximate.
 - Summary generation is lightweight heuristic logic, not a full LLM pipeline.
-- The bundled `whisper.cpp` models increase APK size.
+- Downloaded models are stored locally on the device for offline reuse.

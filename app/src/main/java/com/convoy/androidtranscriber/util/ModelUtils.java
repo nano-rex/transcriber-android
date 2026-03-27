@@ -25,10 +25,7 @@ public final class ModelUtils {
     }
 
     public static List<ModelSpec> bundledModelSpecs() {
-        List<ModelSpec> specs = new ArrayList<>();
-        specs.add(new ModelSpec(TINY_EN, "tiny-en", "models/ggml-tiny.en.bin", true, false));
-        specs.add(new ModelSpec(TINY, "tiny", "models/ggml-tiny.bin", true, true));
-        return specs;
+        return new ArrayList<>();
     }
 
     public static List<ModelSpec> availableModels(Context context) {
