@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
     private final Runnable transcriptionProgressUpdater = new Runnable() {
         @Override
         public void run() {
-            if (!whisper.isInProgress()) return;
+            if (whisper == null || !whisper.isInProgress()) return;
             long elapsed = System.currentTimeMillis() - startTimeMs;
             int percent = estimateTranscriptionPercent(elapsed);
             tvStatus.setText(String.format(Locale.US, "Status: transcribing... %d%%", percent));
@@ -89,37 +89,6 @@ public class MainActivity extends AppCompatActivity {
         Button btnManageModels = findViewById(R.id.btnManageModels);
         Button btnSettings = findViewById(R.id.btnSettings);
 
-        whisper = new Whisper(this);
-        whisper.setListener(new Whisper.WhisperListener() {
-            @Override
-            public void onUpdateReceived(String message) {
-                handler.post(() -> {
-                    if (Whisper.MSG_PROCESSING_DONE.equals(message)) {
-                        handler.removeCallbacks(transcriptionProgressUpdater);
-                        long elapsed = System.currentTimeMillis() - startTimeMs;
-                        tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
-                    } else {
-                        tvStatus.setText("Status: " + message);
-                    }
-                });
-            }
-
-            @Override
-            public void onResultReceived(String result) {
-                handler.post(() -> {
-                    String safeResult = result == null ? "" : result.trim();
-                    latestSegments = new ArrayList<>(whisper.getLastSegments());
-                    String diarizedText = buildDiarizedText(latestSegments);
-                    latestTranscript = safeResult;
-                    latestDiarized = diarizedText;
-                    btnViewResults.setEnabled(true);
-                    writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
-                    setStatusNormal();
-                    openResultsWindow();
-                });
-            }
-        });
-
         recommendedTier = ModelUtils.recommendModelTier(this);
         tvModelRecommendation.setText(buildRecommendationText(recommendedTier));
         setupModelSpinner();
@@ -141,6 +110,48 @@ public class MainActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
+    }
+
+    private boolean ensureWhisper() {
+        if (whisper != null) return true;
+        try {
+            whisper = new Whisper(this);
+            whisper.setListener(new Whisper.WhisperListener() {
+                @Override
+                public void onUpdateReceived(String message) {
+                    handler.post(() -> {
+                        if (Whisper.MSG_PROCESSING_DONE.equals(message)) {
+                            handler.removeCallbacks(transcriptionProgressUpdater);
+                            long elapsed = System.currentTimeMillis() - startTimeMs;
+                            tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
+                        } else {
+                            tvStatus.setText("Status: " + message);
+                        }
+                    });
+                }
+
+                @Override
+                public void onResultReceived(String result) {
+                    handler.post(() -> {
+                        String safeResult = result == null ? "" : result.trim();
+                        latestSegments = new ArrayList<>(whisper.getLastSegments());
+                        String diarizedText = buildDiarizedText(latestSegments);
+                        latestTranscript = safeResult;
+                        latestDiarized = diarizedText;
+                        btnViewResults.setEnabled(true);
+                        writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
+                        setStatusNormal();
+                        openResultsWindow();
+                    });
+                }
+            });
+            return true;
+        } catch (Throwable t) {
+            whisper = null;
+            setStatusWarning();
+            tvStatus.setText("Status: transcription runtime unavailable on this device");
+            return false;
+        }
     }
 
     @Override
@@ -222,6 +233,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startTranscription() {
+        if (!ensureWhisper()) {
+            return;
+        }
         if (currentImportedWav == null || !currentImportedWav.exists()) {
             tvStatus.setText("Status: pick a media file first");
             return;

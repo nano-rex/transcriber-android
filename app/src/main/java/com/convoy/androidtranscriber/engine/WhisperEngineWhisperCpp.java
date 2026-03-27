@@ -21,6 +21,9 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
     @Override
     public boolean initialize(String modelPath, String vocabPath, boolean multilingual) throws IOException {
         deinitialize();
+        if (!WhisperCppLib.ensureLoaded()) {
+            throw new IOException("Failed to load native whisper runtime: " + WhisperCppLib.getLoadError());
+        }
         contextPtr = WhisperCppLib.initContext(modelPath);
         if (contextPtr == 0L) {
             throw new IOException("Failed to load whisper.cpp model: " + modelPath);
