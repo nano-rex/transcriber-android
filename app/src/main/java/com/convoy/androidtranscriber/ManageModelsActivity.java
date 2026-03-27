@@ -24,6 +24,12 @@ import java.util.Locale;
 public class ManageModelsActivity extends AppCompatActivity {
     private static final String MODEL_RELEASE_BASE_URL =
             "https://github.com/nano-rex/transcriber-android/releases/download/android-whispercpp-models-2026-03-27/";
+    private static final String LEGACY_TINY_RELEASE_BASE_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-tiny/";
+    private static final String LEGACY_SMALL_RELEASE_BASE_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small/";
+    private static final String LEGACY_SPECIALIST_RELEASE_BASE_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small-specialist/";
 
     private EditText etSearch;
     private TextView tvStatus;
@@ -57,13 +63,20 @@ public class ManageModelsActivity extends AppCompatActivity {
 
     private void loadRows() {
         allRows.clear();
-        allRows.add(buildHostedRow("tiny-en", "ASR", "ggml-tiny.en.bin", hostedUrl("ggml-tiny.en.bin"), false));
-        allRows.add(buildHostedRow("tiny", "ASR", "ggml-tiny.bin", hostedUrl("ggml-tiny.bin"), true));
-        allRows.add(buildHostedRow("small", "ASR", "ggml-small.bin", hostedUrl("ggml-small.bin"), true));
-        allRows.add(buildHostedRow("small-mandarin", "ASR", "ggml-small-mandarin.bin", hostedUrl("ggml-small-mandarin.bin"), true));
-        allRows.add(buildHostedRow("small-malay", "ASR", "ggml-small-malay.bin", hostedUrl("ggml-small-malay.bin"), true));
-        allRows.add(buildHostedRow("small-cantonese", "ASR", "ggml-small-cantonese.bin", hostedUrl("ggml-small-cantonese.bin"), true));
-        allRows.add(buildHostedRow("small-hokkien", "ASR", "ggml-small-hokkien.bin", hostedUrl("ggml-small-hokkien.bin"), true));
+        allRows.add(buildHostedRow("tiny-en", "ASR", "ggml-tiny.en.bin",
+                hostedUrl("ggml-tiny.en.bin"), LEGACY_TINY_RELEASE_BASE_URL + "ggml-tiny.en.bin", false));
+        allRows.add(buildHostedRow("tiny", "ASR", "ggml-tiny.bin",
+                hostedUrl("ggml-tiny.bin"), LEGACY_TINY_RELEASE_BASE_URL + "ggml-tiny.bin", true));
+        allRows.add(buildHostedRow("small", "ASR", "ggml-small.bin",
+                hostedUrl("ggml-small.bin"), LEGACY_SMALL_RELEASE_BASE_URL + "ggml-small.bin", true));
+        allRows.add(buildHostedRow("small-mandarin", "ASR", "ggml-small-mandarin.bin",
+                hostedUrl("ggml-small-mandarin.bin"), LEGACY_SPECIALIST_RELEASE_BASE_URL + "ggml-small-mandarin.bin", true));
+        allRows.add(buildHostedRow("small-malay", "ASR", "ggml-small-malay.bin",
+                hostedUrl("ggml-small-malay.bin"), LEGACY_SPECIALIST_RELEASE_BASE_URL + "ggml-small-malay.bin", true));
+        allRows.add(buildHostedRow("small-cantonese", "ASR", "ggml-small-cantonese.bin",
+                hostedUrl("ggml-small-cantonese.bin"), LEGACY_SPECIALIST_RELEASE_BASE_URL + "ggml-small-cantonese.bin", true));
+        allRows.add(buildHostedRow("small-hokkien", "ASR", "ggml-small-hokkien.bin",
+                hostedUrl("ggml-small-hokkien.bin"), LEGACY_SPECIALIST_RELEASE_BASE_URL + "ggml-small-hokkien.bin", true));
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }
@@ -72,12 +85,13 @@ public class ManageModelsActivity extends AppCompatActivity {
         return MODEL_RELEASE_BASE_URL + fileName;
     }
 
-    private ModelRow buildHostedRow(String displayName, String category, String fileName, String url, boolean multilingual) {
+    private ModelRow buildHostedRow(String displayName, String category, String fileName, String url,
+                                    @Nullable String fallbackUrl, boolean multilingual) {
         File localFile = new File(ModelUtils.customModelsDir(this), fileName);
         boolean downloaded = localFile.exists();
         return new ModelRow(displayName, category, downloaded ? "Downloaded" : "Not downloaded", multilingual,
                 localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
-                true, url);
+                true, url, fallbackUrl);
     }
 
     private void applyFilter(String query) {
@@ -126,7 +140,7 @@ public class ManageModelsActivity extends AppCompatActivity {
             File target = new File(row.location);
             File tmp = new File(target.getParentFile(), target.getName() + ".part");
             try {
-                downloadToFile(row.downloadUrl, tmp, row.displayName);
+                downloadToFile(row.downloadUrl, row.fallbackUrl, tmp, row.displayName);
                 if (target.exists() && !target.delete()) {
                     throw new IOException("Unable to replace existing model");
                 }
@@ -144,7 +158,22 @@ public class ManageModelsActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void downloadToFile(String urlText, File target, String displayName) throws IOException {
+    private void downloadToFile(String primaryUrl, @Nullable String fallbackUrl, File target, String displayName) throws IOException {
+        IOException primaryFailure = null;
+        try {
+            downloadToFileOnce(primaryUrl, target, displayName);
+            return;
+        } catch (IOException e) {
+            primaryFailure = e;
+        }
+        if (fallbackUrl != null && !fallbackUrl.equals(primaryUrl)) {
+            downloadToFileOnce(fallbackUrl, target, displayName);
+            return;
+        }
+        throw primaryFailure;
+    }
+
+    private void downloadToFileOnce(String urlText, File target, String displayName) throws IOException {
         File parent = target.getParentFile();
         if (parent != null && !parent.exists()) parent.mkdirs();
         HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
@@ -189,10 +218,11 @@ public class ManageModelsActivity extends AppCompatActivity {
         public final String actionLabel;
         public final boolean actionEnabled;
         public final String downloadUrl;
+        public final String fallbackUrl;
 
         public ModelRow(String displayName, String category, String state, boolean multilingual, String location,
                         boolean available, boolean bundled, boolean customFile, String actionLabel,
-                        boolean actionEnabled, String downloadUrl) {
+                        boolean actionEnabled, String downloadUrl, @Nullable String fallbackUrl) {
             this.displayName = displayName;
             this.category = category;
             this.state = state;
@@ -204,6 +234,7 @@ public class ManageModelsActivity extends AppCompatActivity {
             this.actionLabel = actionLabel;
             this.actionEnabled = actionEnabled;
             this.downloadUrl = downloadUrl;
+            this.fallbackUrl = fallbackUrl;
         }
 
         public String statusLine() {
