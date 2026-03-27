@@ -347,7 +347,7 @@ public class MainActivity extends AppCompatActivity {
             }
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
             writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
-            writeTextFile(new File(outputsDir, base + ".diarized.txt"), diarizedText == null ? "" : diarizedText);
+            writeTextFile(new File(outputsDir, base + ".diarized.srt"), diarizedText == null ? "" : diarizedText);
             writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length);
         } catch (Exception e) {
             setStatusWarning();

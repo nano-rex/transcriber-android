@@ -70,7 +70,7 @@ After download, the model is stored locally on the device and used fully offline
 The app writes local output groups using the WAV base name:
 - `<name>.enhanced.wav`
 - `<name>.transcript.txt`
-- `<name>.diarized.txt`
+- `<name>.diarized.srt`
 - `<name>.summary.txt`
 - `<name>.meta.json`
 

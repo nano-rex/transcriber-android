@@ -82,8 +82,8 @@ public class SavedOutputsActivity extends AppCompatActivity {
                 } else if (name.endsWith(".summary.txt")) {
                     SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".summary.txt"), SavedOutput::new);
                     entry.summaryFile = file;
-                } else if (name.endsWith(".diarized.txt")) {
-                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".diarized.txt"), SavedOutput::new);
+                } else if (name.endsWith(".diarized.srt")) {
+                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".diarized.srt"), SavedOutput::new);
                     entry.diarizedFile = file;
                 } else if (name.endsWith(".meta.json")) {
                     SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".meta.json"), SavedOutput::new);

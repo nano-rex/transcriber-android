@@ -75,7 +75,7 @@ public final class DiarizationUtils {
         if (samples == null || samples.length == 0 || segments == null || segments.isEmpty()) return "";
         if (segments.size() == 1) {
             TextSegment seg = segments.get(0);
-            return "[" + formatTimestamp(seg.startSeconds) + " - " + formatTimestamp(seg.endSeconds) + "] Speaker 1: " + seg.text;
+            return buildSrtBlock(1, seg.startSeconds, seg.endSeconds, "Speaker 1: " + seg.text);
         }
 
         double[][] features = new double[segments.size()][2];
@@ -122,15 +122,8 @@ public final class DiarizationUtils {
             TextSegment seg = segments.get(i);
             if (seg.text.isEmpty()) continue;
             int speaker = cluster1IsSpeaker1 ? (assignments[i] == 0 ? 1 : 2) : (assignments[i] == 0 ? 2 : 1);
-            out.append('[')
-                    .append(formatTimestamp(seg.startSeconds))
-                    .append(" - ")
-                    .append(formatTimestamp(seg.endSeconds))
-                    .append("] Speaker ")
-                    .append(speaker)
-                    .append(": ")
-                    .append(seg.text)
-                    .append("\n\n");
+            if (out.length() > 0) out.append("\n\n");
+            out.append(buildSrtBlock(i + 1, seg.startSeconds, seg.endSeconds, "Speaker " + speaker + ": " + seg.text));
         }
         return out.toString().trim();
     }
@@ -141,6 +134,21 @@ public final class DiarizationUtils {
         int minutes = (total % 3600) / 60;
         int secs = total % 60;
         return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, secs);
+    }
+
+    public static String formatSrtTimestamp(double seconds) {
+        long totalMillis = Math.max(0L, Math.round(seconds * 1000.0));
+        long hours = totalMillis / 3600000L;
+        long minutes = (totalMillis % 3600000L) / 60000L;
+        long secs = (totalMillis % 60000L) / 1000L;
+        long millis = totalMillis % 1000L;
+        return String.format(Locale.US, "%02d:%02d:%02d,%03d", hours, minutes, secs, millis);
+    }
+
+    private static String buildSrtBlock(int index, double startSeconds, double endSeconds, String text) {
+        return index + "\n"
+                + formatSrtTimestamp(startSeconds) + " --> " + formatSrtTimestamp(endSeconds) + "\n"
+                + text;
     }
 
     private static double rms(float[] samples, int start, int end) {
