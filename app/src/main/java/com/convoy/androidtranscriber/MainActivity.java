@@ -27,7 +27,6 @@ import com.convoy.androidtranscriber.util.ModelUtils;
 import com.convoy.androidtranscriber.util.ModelUtils.HardwareAssessment;
 import com.convoy.androidtranscriber.util.ModelUtils.ModelSpec;
 import com.convoy.androidtranscriber.util.StorageUtils;
-import com.convoy.androidtranscriber.util.SummaryUtils;
 import com.convoy.androidtranscriber.util.WaveUtil;
 
 import java.io.File;
@@ -58,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
     private long startTimeMs;
     private String latestTranscript = "";
     private String latestDiarized = "";
-    private String latestSummary = "";
     private List<DiarizationUtils.TextSegment> latestSegments = new ArrayList<>();
     private int defaultStatusColor;
     private final Runnable transcriptionProgressUpdater = new Runnable() {
@@ -112,10 +110,8 @@ public class MainActivity extends AppCompatActivity {
                     String safeResult = result == null ? "" : result.trim();
                     latestSegments = new ArrayList<>(whisper.getLastSegments());
                     String diarizedText = buildDiarizedText(latestSegments);
-                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
-                    latestSummary = summaryText;
                     btnViewResults.setEnabled(true);
                     writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
                     setStatusNormal();
@@ -245,7 +241,6 @@ public class MainActivity extends AppCompatActivity {
         startTimeMs = System.currentTimeMillis();
         latestTranscript = "";
         latestDiarized = "";
-        latestSummary = "";
         btnViewResults.setEnabled(false);
         if (assessment.canRun) {
             setStatusNormal();
@@ -271,10 +266,8 @@ public class MainActivity extends AppCompatActivity {
                     String safeResult = bundle.text == null ? "" : bundle.text.trim();
                     latestSegments = new ArrayList<>(bundle.segments);
                     String diarizedText = buildDiarizedText(latestSegments);
-                    String summaryText = SummaryUtils.buildSummaryReport(safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
-                    latestSummary = summaryText;
                     btnViewResults.setEnabled(true);
                     writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
                     setStatusNormal();
@@ -359,7 +352,6 @@ public class MainActivity extends AppCompatActivity {
                 copyFileCompat(currentImportedWav, enhancedOutput);
             }
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
-            writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
             writeTextFile(new File(outputsDir, base + ".diarized.srt"), diarizedText == null ? "" : diarizedText);
             writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length, segments == null ? 0 : segments.size());
         } catch (Exception e) {
@@ -379,7 +371,6 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra(ResultsActivity.EXTRA_TITLE, currentImportedWav == null ? "Latest Result" : currentImportedWav.getName());
         intent.putExtra(ResultsActivity.EXTRA_TRANSCRIPT, latestTranscript);
         intent.putExtra(ResultsActivity.EXTRA_DIARIZED, latestDiarized);
-        intent.putExtra(ResultsActivity.EXTRA_SUMMARY, latestSummary);
         startActivity(intent);
     }
 

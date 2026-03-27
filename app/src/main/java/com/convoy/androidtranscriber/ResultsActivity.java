@@ -21,10 +21,8 @@ import java.nio.file.Files;
 public class ResultsActivity extends AppCompatActivity {
     public static final String EXTRA_TRANSCRIPT = "extra_transcript";
     public static final String EXTRA_DIARIZED = "extra_diarized";
-    public static final String EXTRA_SUMMARY = "extra_summary";
     public static final String EXTRA_TRANSCRIPT_PATH = "extra_transcript_path";
     public static final String EXTRA_DIARIZED_PATH = "extra_diarized_path";
-    public static final String EXTRA_SUMMARY_PATH = "extra_summary_path";
     public static final String EXTRA_TITLE = "extra_title";
 
     private TextView tvContent;
@@ -32,7 +30,6 @@ public class ResultsActivity extends AppCompatActivity {
     private EditText etSearch;
     private String transcriptText = "";
     private String diarizedText = "";
-    private String summaryText = "";
     private String currentTitle = "Results";
     private String currentContent = "";
 
@@ -43,13 +40,11 @@ public class ResultsActivity extends AppCompatActivity {
 
         transcriptText = resolveContent(EXTRA_TRANSCRIPT_PATH, EXTRA_TRANSCRIPT);
         diarizedText = resolveContent(EXTRA_DIARIZED_PATH, EXTRA_DIARIZED);
-        summaryText = resolveContent(EXTRA_SUMMARY_PATH, EXTRA_SUMMARY);
         currentTitle = valueOrEmpty(getIntent().getStringExtra(EXTRA_TITLE));
         if (currentTitle.isEmpty()) currentTitle = "Results";
 
         Button btnTranscript = findViewById(R.id.btnResultsTranscript);
         Button btnDiarized = findViewById(R.id.btnResultsDiarized);
-        Button btnSummary = findViewById(R.id.btnResultsSummary);
         Button btnCopy = findViewById(R.id.btnResultsCopy);
         Button btnShare = findViewById(R.id.btnResultsShare);
         Button btnSearch = findViewById(R.id.btnResultsSearch);
@@ -59,7 +54,6 @@ public class ResultsActivity extends AppCompatActivity {
 
         btnTranscript.setOnClickListener(v -> showSection("Transcript", transcriptText));
         btnDiarized.setOnClickListener(v -> showSection("Diarized Transcript", diarizedText));
-        btnSummary.setOnClickListener(v -> showSection("Overview + Key Points", summaryText));
         btnCopy.setOnClickListener(v -> copyCurrentContent());
         btnShare.setOnClickListener(v -> shareCurrentContent());
         btnSearch.setOnClickListener(v -> highlightSearch());
@@ -69,7 +63,7 @@ public class ResultsActivity extends AppCompatActivity {
         } else if (!diarizedText.isEmpty()) {
             showSection("Diarized Transcript", diarizedText);
         } else {
-            showSection("Overview + Key Points", summaryText);
+            showSection("Transcript", transcriptText);
         }
     }
 

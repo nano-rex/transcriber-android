@@ -79,9 +79,6 @@ public class SavedOutputsActivity extends AppCompatActivity {
                 if (name.endsWith(".transcript.txt")) {
                     SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".transcript.txt"), SavedOutput::new);
                     entry.transcriptFile = file;
-                } else if (name.endsWith(".summary.txt")) {
-                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".summary.txt"), SavedOutput::new);
-                    entry.summaryFile = file;
                 } else if (name.endsWith(".diarized.srt")) {
                     SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".diarized.srt"), SavedOutput::new);
                     entry.diarizedFile = file;
@@ -109,7 +106,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
             }
         }
         adapter.notifyDataSetChanged();
-        tvEmpty.setText(filteredOutputs.isEmpty() ? "No saved transcripts or summaries found." : "");
+        tvEmpty.setText(filteredOutputs.isEmpty() ? "No saved transcripts found." : "");
         btnDelete.setEnabled(!filteredOutputs.isEmpty());
     }
 
@@ -121,9 +118,6 @@ public class SavedOutputsActivity extends AppCompatActivity {
         }
         if (output.diarizedFile != null) {
             intent.putExtra(ResultsActivity.EXTRA_DIARIZED_PATH, output.diarizedFile.getAbsolutePath());
-        }
-        if (output.summaryFile != null) {
-            intent.putExtra(ResultsActivity.EXTRA_SUMMARY_PATH, output.summaryFile.getAbsolutePath());
         }
         startActivity(intent);
     }
@@ -140,7 +134,6 @@ public class SavedOutputsActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (dialog, which) -> {
                     deleteIfExists(output.transcriptFile);
-                    deleteIfExists(output.summaryFile);
                     deleteIfExists(output.diarizedFile);
                     deleteIfExists(output.metaFile);
                     deleteIfExists(output.enhancedAudioFile);
@@ -163,7 +156,6 @@ public class SavedOutputsActivity extends AppCompatActivity {
     private static final class SavedOutput {
         final String baseName;
         File transcriptFile;
-        File summaryFile;
         File diarizedFile;
         File metaFile;
         File enhancedAudioFile;
@@ -175,7 +167,6 @@ public class SavedOutputsActivity extends AppCompatActivity {
         long lastModified() {
             long latest = 0L;
             if (transcriptFile != null) latest = Math.max(latest, transcriptFile.lastModified());
-            if (summaryFile != null) latest = Math.max(latest, summaryFile.lastModified());
             if (diarizedFile != null) latest = Math.max(latest, diarizedFile.lastModified());
             if (metaFile != null) latest = Math.max(latest, metaFile.lastModified());
             if (enhancedAudioFile != null) latest = Math.max(latest, enhancedAudioFile.lastModified());
