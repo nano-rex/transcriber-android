@@ -397,7 +397,6 @@ public class MainActivity extends AppCompatActivity {
 
     private double estimatedRealtimeFactor(String tier) {
         String normalized = tier == null ? "" : tier.toLowerCase(Locale.US);
-        if (normalized.contains("medium")) return 2.8;
         if (normalized.contains("small")) return 1.7;
         return 1.1;
     }

@@ -25,9 +25,6 @@ public class ManageModelsActivity extends AppCompatActivity {
     private static final String SMALL_MODEL_URL =
             "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-small-tflite/whisper-small.tflite";
     private static final String SMALL_MODEL_FILE = "whisper-small.tflite";
-    private static final String MEDIUM_MODEL_URL =
-            "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-medium-tflite/whisper-medium.tflite";
-    private static final String MEDIUM_MODEL_FILE = "whisper-medium.tflite";
     private EditText etSearch;
     private TextView tvStatus;
     private ListView listModels;
@@ -63,7 +60,6 @@ public class ManageModelsActivity extends AppCompatActivity {
         allRows.add(buildBundledRow("tiny-en", "ASR", "models/whisper-tiny.en.tflite", false));
         allRows.add(buildBundledRow("tiny", "ASR", "models/whisper-tiny.tflite", true));
         allRows.add(buildHostedRow("small", "ASR", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
-        allRows.add(buildHostedRow("medium", "ASR", MEDIUM_MODEL_FILE, MEDIUM_MODEL_URL, true));
         allRows.add(buildSummaryRulesRow());
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());

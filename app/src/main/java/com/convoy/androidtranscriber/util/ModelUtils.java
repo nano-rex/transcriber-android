@@ -18,15 +18,12 @@ public final class ModelUtils {
     public static final String TINY_EN = "tiny-en";
     public static final String TINY = "tiny";
     public static final String SMALL = "small";
-    public static final String MEDIUM = "medium";
 
     public static String recommendModelTier(Context context) {
         HardwareAssessment tiny = assessHardware(context, TINY);
         HardwareAssessment small = assessHardware(context, SMALL);
-        HardwareAssessment medium = assessHardware(context, MEDIUM);
         if (tiny.canRun) return TINY;
         if (small.canRun) return SMALL;
-        if (medium.canRun) return MEDIUM;
         return TINY;
     }
 
@@ -124,7 +121,6 @@ public final class ModelUtils {
 
     public static double estimatedModelRamGb(String tier) {
         String normalized = tier == null ? "" : tier.toLowerCase(Locale.US);
-        if (normalized.contains(MEDIUM)) return 7.5;
         if (normalized.contains(SMALL)) return 4.2;
         if (normalized.contains(TINY)) return normalized.contains("en") ? 1.0 : 1.3;
         return 2.5;
@@ -132,7 +128,6 @@ public final class ModelUtils {
 
     private static int minThreadsForTier(String tier) {
         String normalized = tier == null ? "" : tier.toLowerCase(Locale.US);
-        if (normalized.contains(MEDIUM)) return 6;
         if (normalized.contains(SMALL)) return 4;
         return 2;
     }
@@ -169,7 +164,6 @@ public final class ModelUtils {
     private static String knownModelLabel(String fileName) {
         String lower = fileName.toLowerCase(Locale.US);
         if ("whisper-small.tflite".equals(lower)) return SMALL;
-        if ("whisper-medium.tflite".equals(lower)) return MEDIUM;
         if ("whisper-tiny.tflite".equals(lower)) return TINY;
         if ("whisper-tiny.en.tflite".equals(lower)) return TINY_EN;
         return stripExtension(fileName) + " (custom)";
@@ -192,7 +186,6 @@ public final class ModelUtils {
 
         public String tierHint() {
             String normalized = label.toLowerCase(Locale.US);
-            if (normalized.contains("medium")) return MEDIUM;
             if (normalized.contains("small")) return SMALL;
             if (normalized.contains("tiny-en")) return TINY_EN;
             if (normalized.contains("tiny")) return TINY;
