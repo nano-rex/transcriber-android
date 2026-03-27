@@ -23,6 +23,16 @@ add_library(whisper SHARED ${SOURCE_FILES})
 FetchContent_Declare(ggml SOURCE_DIR ${WHISPER_LIB_DIR}/ggml)
 FetchContent_MakeAvailable(ggml)
 
+set(ANDROID_PAGE_SIZE_LINK_FLAGS
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384")
+
+foreach(target whisper ggml ggml-base ggml-cpu)
+    if(TARGET ${target})
+        target_link_options(${target} PRIVATE ${ANDROID_PAGE_SIZE_LINK_FLAGS})
+    endif()
+endforeach()
+
 target_link_libraries(whisper ${LOG_LIB} android ggml)
 target_compile_definitions(whisper PUBLIC GGML_USE_CPU)
 target_compile_definitions(whisper PRIVATE WHISPER_VERSION="${WHISPER_VERSION}")
