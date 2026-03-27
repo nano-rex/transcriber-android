@@ -26,6 +26,8 @@ public class ManageModelsActivity extends AppCompatActivity {
             "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-tiny/ggml-tiny.en.bin";
     private static final String TINY_MODEL_URL =
             "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-tiny/ggml-tiny.bin";
+    private static final String SMALL_MODEL_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small/ggml-small.bin";
 
     private EditText etSearch;
     private TextView tvStatus;
@@ -61,7 +63,7 @@ public class ManageModelsActivity extends AppCompatActivity {
         allRows.clear();
         allRows.add(buildHostedRow("tiny-en", "ASR", "ggml-tiny.en.bin", TINY_EN_MODEL_URL, false));
         allRows.add(buildHostedRow("tiny", "ASR", "ggml-tiny.bin", TINY_MODEL_URL, true));
-        allRows.add(buildSummaryRulesRow());
+        allRows.add(buildHostedRow("small", "ASR", "ggml-small.bin", SMALL_MODEL_URL, true));
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }
@@ -84,11 +86,6 @@ public class ManageModelsActivity extends AppCompatActivity {
         }
         adapter.notifyDataSetChanged();
         tvStatus.setText(filteredRows.isEmpty() ? "No models found." : "Models listed: " + filteredRows.size());
-    }
-
-    private ModelRow buildSummaryRulesRow() {
-        return new ModelRow("summary-rules", "Summary", "Bundled heuristic summarizer", true,
-                "built-in", true, true, false, "Bundled", false, null);
     }
 
     private void handleRowAction(ModelRow row) {

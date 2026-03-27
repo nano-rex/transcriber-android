@@ -7,7 +7,7 @@ Android client for `Transcriber Desktop`, built from the shell with Gradle. The 
 - no ASR models bundled by default
 - local audio enhancement and optional trimming before transcription
 - local diarized transcript output
-- local heuristic summary and key points
+- transcript output only; Android AI summary model is not implemented yet
 - saved outputs screen with search and delete
 - settings page for preprocessing toggles
 
@@ -51,6 +51,7 @@ Default install ships with zero ASR models.
 Use `Manage Models` inside the app to download one of these hosted models:
 - `ggml-tiny.en.bin`
 - `ggml-tiny.bin`
+- `ggml-small.bin`
 
 After download, the model is stored locally on the device and used fully offline.
 
@@ -59,7 +60,7 @@ After download, the model is stored locally on the device and used fully offline
 2. Pick media from the device.
 3. The app optionally enhances and trims audio according to settings.
 4. Transcription runs locally through `whisper.cpp`.
-5. Transcript, diarized transcript, summary, and metadata are saved locally.
+5. Transcript, diarized transcript, a summary placeholder message, and metadata are saved locally.
 
 ## Saved Output Files
 The app writes local output groups using the WAV base name:
@@ -72,5 +73,5 @@ The app writes local output groups using the WAV base name:
 ## Notes
 - This app is intentionally minimal.
 - Diarization is local and approximate.
-- Summary generation is lightweight heuristic logic, not a full LLM pipeline.
+- Android does not yet have a real local summary-model runtime.
 - Downloaded models are stored locally on the device for offline reuse.
