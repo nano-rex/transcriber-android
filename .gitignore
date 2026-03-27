@@ -5,3 +5,5 @@ app/src/main/assets/models/whisper-small.tflite
 local-models/
 releases/
 .kotlin/
+
+app/.cxx/

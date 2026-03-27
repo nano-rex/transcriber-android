@@ -1,50 +1,43 @@
 # Transcriber Android
 
-Android client for the `Transcriber Desktop` project. It is written in plain Java, built with Gradle from the shell, and intended to work locally without Android Studio.
+Android client for `Transcriber Desktop`, built from the shell with Gradle. The app now uses a local `whisper.cpp` runtime instead of TensorFlow Lite.
 
 ## What It Does
-- offline on-device Whisper TFLite transcription
+- offline on-device transcription with bundled `whisper.cpp` models
 - bundled `tiny-en` and `tiny` by default
-- optional local `small` model for manual testing
-- local audio enhancement with bundled AI denoise before transcription
-- settings page with AI enhance and trimming toggles
+- local audio enhancement and optional trimming before transcription
 - local diarized transcript output
-- local summary and key points
+- local heuristic summary and key points
 - saved outputs screen with search and delete
-- custom `.tflite` model import through the app
+- settings page for preprocessing toggles
 
 ## Project Layout
 - `app/src/main/java/com/convoy/androidtranscriber/` app code
-- `app/src/main/assets/models/` bundled TFLite models
+- `app/src/main/java/com/convoy/androidtranscriber/engine/` Java bridge to `whisper.cpp`
+- `app/src/main/cpp/` vendored `whisper.cpp` native build files
+- `app/src/main/assets/models/` bundled `.bin` Whisper models
 - `app/src/main/assets/audio/` sample audio
 - `app/src/main/assets/denoise/` bundled RNNoise model for AI denoise
 - `app/src/main/res/` layouts and resources
-- `scripts/` local helper scripts for staging bigger models
-- `releases/` built APK copies
 
 ## Build From Source
 Required:
-- JDK 17
+- JDK 21
 - Android SDK command-line tools
 - Android platform/build tools for API 34
+- Android NDK `25.2.9519653`
+- Android CMake `3.22.1`
 
 Build:
 
 ```bash
 cd /home/user/github/transcriber-android
-export JAVA_HOME=/home/user/Downloads/toolchains/jdk-17.0.18+8
 export ANDROID_SDK_ROOT=/home/user/Downloads/android-sdk
-export TMPDIR=/home/user/.tmp-gradle
-export GRADLE_USER_HOME=/home/user/.gradle-user-home-clean
-export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-export GRADLE_OPTS='-Djava.io.tmpdir=/home/user/.tmp-gradle -XX:-UsePerfData'
-export _JAVA_OPTIONS='-Djava.io.tmpdir=/home/user/.tmp-gradle -XX:-UsePerfData'
 ./gradlew :app:assembleDebug
 ```
 
 APK output:
 - `app/build/outputs/apk/debug/app-debug.apk`
-- `releases/transcriber-android-debug.apk`
 
 Install:
 
@@ -52,47 +45,23 @@ Install:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Offline Model Setup
+## Offline Models
 Bundled by default:
-- `whisper-tiny.en.tflite`
-- `whisper-tiny.tflite`
+- `ggml-tiny.en.bin`
+- `ggml-tiny.bin`
 
-Optional local test model:
-- shared source: `/home/user/github/transcriber-desktop/models/whisper-small.tflite`
-
-To stage it into Android assets for a local test build:
-
-```bash
-cd /home/user/github/transcriber-android
-./scripts/stage_local_models.sh
-```
-
-That copies the shared desktop model into:
-
-```text
-app/src/main/assets/models/whisper-small.tflite
-```
-
-The staged file is ignored by git, so it stays local only.
-
-The desktop setup script can stage this file locally:
-
-```bash
-cd /home/user/github/transcriber-desktop
-./scripts/prepare_offline_models.sh
-```
-
-You can also import extra `.tflite` models from inside the app using `Manage Models`.
+Model selection is handled inside the app. At this stage the bundled choices are the two tiny models only.
 
 ## App Flow
-1. Choose a bundled or imported model.
-2. Pick media or record audio.
-3. The app applies settings-driven preprocessing: AI enhance voice and optional trimming.
-4. Transcription runs fully on-device.
+1. Choose a bundled model.
+2. Pick media from the device.
+3. The app optionally enhances and trims audio according to settings.
+4. Transcription runs locally through `whisper.cpp`.
 5. Transcript, diarized transcript, summary, and metadata are saved locally.
 
 ## Saved Output Files
 The app writes local output groups using the WAV base name:
+- `<name>.enhanced.wav`
 - `<name>.transcript.txt`
 - `<name>.diarized.txt`
 - `<name>.summary.txt`
@@ -102,4 +71,4 @@ The app writes local output groups using the WAV base name:
 - This app is intentionally minimal.
 - Diarization is local and approximate.
 - Summary generation is lightweight heuristic logic, not a full LLM pipeline.
-- Large bundled models increase APK size and build time.
+- The bundled `whisper.cpp` models increase APK size.

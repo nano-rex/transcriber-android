@@ -155,7 +155,7 @@ public class MainActivity extends AppCompatActivity {
         availableModels.clear();
         availableModels.addAll(ModelUtils.availableModels(this));
         if (availableModels.isEmpty()) {
-            availableModels.add(new ModelSpec(ModelUtils.TINY, ModelUtils.TINY, "models/whisper-tiny.tflite", true, true));
+            availableModels.add(new ModelSpec(ModelUtils.TINY, ModelUtils.TINY, "models/ggml-tiny.bin", true, true));
         }
 
         List<String> labels = new ArrayList<>();
@@ -246,9 +246,8 @@ public class MainActivity extends AppCompatActivity {
             List<File> wavParts = null;
             try {
                 File modelFile = ensureModelFile(selectedModel);
-                File vocabFile = ensureVocabFile(selectedModel);
                 whisper.unloadModel();
-                whisper.loadModel(modelFile.getAbsolutePath(), vocabFile.getAbsolutePath(), selectedModel.multilingual);
+                whisper.loadModel(modelFile.getAbsolutePath(), "", selectedModel.multilingual);
                 wavParts = AudioImportUtil.splitWavForTranscription(this, currentImportedWav);
                 handler.post(transcriptionProgressUpdater);
                 String result = transcribeWavParts(wavParts);
@@ -310,12 +309,6 @@ public class MainActivity extends AppCompatActivity {
         File file = new File(spec.assetPath);
         if (!file.exists()) throw new IOException("Model file not found: " + file.getName());
         return file;
-    }
-
-    private File ensureVocabFile(ModelSpec spec) throws IOException {
-        String assetPath = ModelUtils.vocabAssetForModel(spec);
-        File outFile = new File(new File(getFilesDir(), "vocab"), new File(assetPath).getName());
-        return AssetUtils.copyAssetToFile(this, assetPath, outFile);
     }
 
     private String buildDiarizedText(String transcript) {

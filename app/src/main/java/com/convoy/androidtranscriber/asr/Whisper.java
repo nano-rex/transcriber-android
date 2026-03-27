@@ -4,7 +4,7 @@ import android.content.Context;
 import android.util.Log;
 
 import com.convoy.androidtranscriber.engine.WhisperEngine;
-import com.convoy.androidtranscriber.engine.WhisperEngineJava;
+import com.convoy.androidtranscriber.engine.WhisperEngineWhisperCpp;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,7 +27,7 @@ public class Whisper {
     private WhisperListener listener;
 
     public Whisper(Context context) {
-        whisperEngine = new WhisperEngineJava(context);
+        whisperEngine = new WhisperEngineWhisperCpp();
     }
 
     public void setListener(WhisperListener listener) {

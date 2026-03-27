@@ -17,21 +17,17 @@ public final class ModelUtils {
 
     public static final String TINY_EN = "tiny-en";
     public static final String TINY = "tiny";
-    public static final String SMALL = "small";
 
     public static String recommendModelTier(Context context) {
         HardwareAssessment tiny = assessHardware(context, TINY);
-        HardwareAssessment small = assessHardware(context, SMALL);
         if (tiny.canRun) return TINY;
-        if (small.canRun) return SMALL;
         return TINY;
     }
 
     public static List<ModelSpec> bundledModelSpecs() {
         List<ModelSpec> specs = new ArrayList<>();
-        specs.add(new ModelSpec(TINY_EN, "tiny-en", "models/whisper-tiny.en.tflite", true, false));
-        specs.add(new ModelSpec(TINY, "tiny", "models/whisper-tiny.tflite", true, true));
-        specs.add(new ModelSpec(SMALL, "small", "models/whisper-small.tflite", true, true));
+        specs.add(new ModelSpec(TINY_EN, "tiny-en", "models/ggml-tiny.en.bin", true, false));
+        specs.add(new ModelSpec(TINY, "tiny", "models/ggml-tiny.bin", true, true));
         return specs;
     }
 
@@ -42,7 +38,7 @@ public final class ModelUtils {
         }
 
         File customDir = customModelsDir(context);
-        File[] files = customDir.listFiles((dir, name) -> name.toLowerCase(Locale.US).endsWith(".tflite"));
+        File[] files = customDir.listFiles((dir, name) -> name.toLowerCase(Locale.US).endsWith(".bin"));
         if (files != null) {
             for (File file : files) {
                 String fileName = file.getName();
@@ -64,14 +60,6 @@ public final class ModelUtils {
 
     public static boolean isMultilingual(String tier) {
         return !TINY_EN.equals(tier);
-    }
-
-    public static String vocabAssetForTier(String tier) {
-        return isMultilingual(tier) ? "filters_vocab_multilingual.bin" : "filters_vocab_en.bin";
-    }
-
-    public static String vocabAssetForModel(ModelSpec spec) {
-        return spec.multilingual ? "filters_vocab_multilingual.bin" : "filters_vocab_en.bin";
     }
 
     public static File customModelsDir(Context context) {
@@ -121,14 +109,12 @@ public final class ModelUtils {
 
     public static double estimatedModelRamGb(String tier) {
         String normalized = tier == null ? "" : tier.toLowerCase(Locale.US);
-        if (normalized.contains(SMALL)) return 4.2;
         if (normalized.contains(TINY)) return normalized.contains("en") ? 1.0 : 1.3;
         return 2.5;
     }
 
     private static int minThreadsForTier(String tier) {
         String normalized = tier == null ? "" : tier.toLowerCase(Locale.US);
-        if (normalized.contains(SMALL)) return 4;
         return 2;
     }
 
@@ -153,7 +139,7 @@ public final class ModelUtils {
 
     private static boolean looksEnglishOnly(String fileName) {
         String lower = fileName.toLowerCase(Locale.US);
-        return lower.contains(".en.") || lower.contains("-en.") || lower.endsWith(".en.tflite");
+        return lower.contains(".en.") || lower.contains("-en.") || lower.endsWith(".en.bin");
     }
 
     private static String stripExtension(String fileName) {
@@ -163,9 +149,8 @@ public final class ModelUtils {
 
     private static String knownModelLabel(String fileName) {
         String lower = fileName.toLowerCase(Locale.US);
-        if ("whisper-small.tflite".equals(lower)) return SMALL;
-        if ("whisper-tiny.tflite".equals(lower)) return TINY;
-        if ("whisper-tiny.en.tflite".equals(lower)) return TINY_EN;
+        if ("ggml-tiny.bin".equals(lower)) return TINY;
+        if ("ggml-tiny.en.bin".equals(lower)) return TINY_EN;
         return stripExtension(fileName) + " (custom)";
     }
 
@@ -186,10 +171,9 @@ public final class ModelUtils {
 
         public String tierHint() {
             String normalized = label.toLowerCase(Locale.US);
-            if (normalized.contains("small")) return SMALL;
             if (normalized.contains("tiny-en")) return TINY_EN;
             if (normalized.contains("tiny")) return TINY;
-            return multilingual ? TINY : TINY_EN;
+            return TINY;
         }
     }
 

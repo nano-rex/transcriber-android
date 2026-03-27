@@ -22,9 +22,6 @@ import java.util.List;
 import java.util.Locale;
 
 public class ManageModelsActivity extends AppCompatActivity {
-    private static final String SMALL_MODEL_URL =
-            "https://github.com/nano-rex/transcriber-desktop/releases/download/android-model-whisper-small-tflite/whisper-small.tflite";
-    private static final String SMALL_MODEL_FILE = "whisper-small.tflite";
     private EditText etSearch;
     private TextView tvStatus;
     private ListView listModels;
@@ -57,9 +54,8 @@ public class ManageModelsActivity extends AppCompatActivity {
 
     private void loadRows() {
         allRows.clear();
-        allRows.add(buildBundledRow("tiny-en", "ASR", "models/whisper-tiny.en.tflite", false));
-        allRows.add(buildBundledRow("tiny", "ASR", "models/whisper-tiny.tflite", true));
-        allRows.add(buildHostedRow("small", "ASR", SMALL_MODEL_FILE, SMALL_MODEL_URL, true));
+        allRows.add(buildBundledRow("tiny-en", "ASR", "models/ggml-tiny.en.bin", false));
+        allRows.add(buildBundledRow("tiny", "ASR", "models/ggml-tiny.bin", true));
         allRows.add(buildSummaryRulesRow());
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
@@ -83,14 +79,6 @@ public class ManageModelsActivity extends AppCompatActivity {
                 assetPath, available, true, false, available ? "Bundled" : "Missing", false, null);
     }
 
-    private ModelRow buildHostedRow(String displayName, String category, String fileName, String url, boolean multilingual) {
-        File localFile = new File(ModelUtils.customModelsDir(this), fileName);
-        boolean downloaded = localFile.exists();
-        return new ModelRow(displayName, category, downloaded ? "Downloaded" : "Not downloaded", multilingual,
-                localFile.getAbsolutePath(), downloaded, false, downloaded, downloaded ? "Remove" : "Download",
-                true, url);
-    }
-
     private ModelRow buildSummaryRulesRow() {
         return new ModelRow("summary-rules", "Summary", "Bundled heuristic summarizer", true,
                 "built-in", true, true, false, "Bundled", false, null);
@@ -104,9 +92,6 @@ public class ManageModelsActivity extends AppCompatActivity {
         if (row.customFile) {
             confirmRemove(row);
             return;
-        }
-        if (row.downloadUrl != null) {
-            downloadModel(row);
         }
     }
 
@@ -122,63 +107,6 @@ public class ManageModelsActivity extends AppCompatActivity {
                     loadRows();
                 })
                 .show();
-    }
-
-    private void downloadModel(ModelRow row) {
-        tvStatus.setText("Downloading " + row.displayName + "...");
-        new Thread(() -> {
-            File target = new File(row.location);
-            File tmp = new File(target.getParentFile(), target.getName() + ".part");
-            try {
-                downloadToFile(row.downloadUrl, tmp, row.displayName);
-                if (target.exists() && !target.delete()) {
-                    throw new IOException("Unable to replace existing model");
-                }
-                if (!tmp.renameTo(target)) {
-                    throw new IOException("Unable to finalize downloaded model");
-                }
-                runOnUiThread(() -> {
-                    tvStatus.setText("Downloaded " + row.displayName);
-                    loadRows();
-                });
-            } catch (Exception e) {
-                if (tmp.exists()) tmp.delete();
-                runOnUiThread(() -> tvStatus.setText("Download failed: " + e.getMessage()));
-            }
-        }).start();
-    }
-
-    private void downloadToFile(String urlText, File target, String displayName) throws IOException {
-        File parent = target.getParentFile();
-        if (parent != null && !parent.exists()) parent.mkdirs();
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
-        connection.setInstanceFollowRedirects(true);
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(60000);
-        connection.connect();
-        int code = connection.getResponseCode();
-        if (code < 200 || code >= 300) {
-            throw new IOException("HTTP " + code);
-        }
-        int contentLength = connection.getContentLength();
-        try (InputStream in = connection.getInputStream();
-             OutputStream out = new java.io.FileOutputStream(target)) {
-            byte[] buffer = new byte[16384];
-            long totalRead = 0L;
-            for (int read; (read = in.read(buffer)) != -1; ) {
-                out.write(buffer, 0, read);
-                totalRead += read;
-                if (contentLength > 0) {
-                    int percent = (int) Math.min(100L, (totalRead * 100L) / contentLength);
-                    runOnUiThread(() -> tvStatus.setText("Downloading " + displayName + "... " + percent + "%"));
-                } else {
-                    long mb = totalRead / (1024L * 1024L);
-                    runOnUiThread(() -> tvStatus.setText("Downloading " + displayName + "... " + mb + " MB"));
-                }
-            }
-        } finally {
-            connection.disconnect();
-        }
     }
 
     private boolean assetExists(String path) {

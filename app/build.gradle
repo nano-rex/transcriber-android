@@ -17,6 +17,15 @@ android {
         targetSdk 34
         versionCode 1
         versionName '0.1.0-alpha'
+
+        externalNativeBuild {
+            cmake {
+                cppFlags ''
+            }
+        }
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
     }
 
     buildTypes {
@@ -29,20 +38,26 @@ android {
         }
     }
 
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+
+    ndkVersion '25.2.9519653'
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 
     androidResources {
-        noCompress += ['tflite', 'bin', 'rnnn']
+        noCompress += ['bin', 'rnnn']
     }
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
-    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
     implementation 'com.moizhassan.ffmpeg:ffmpeg-kit-16kb:6.1.1'
     implementation 'com.github.gkonovalov.android-vad:webrtc:2.0.10'
 }
