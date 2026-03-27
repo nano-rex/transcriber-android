@@ -27,6 +27,7 @@ public class Whisper {
     private final WhisperEngine whisperEngine;
     private String wavFilePath;
     private WhisperListener listener;
+    private String lastError = null;
 
     public Whisper(Context context) {
         whisperEngine = new WhisperEngineWhisperCpp();
@@ -36,17 +37,22 @@ public class Whisper {
         this.listener = listener;
     }
 
-    public void loadModel(String modelPath, String vocabPath, boolean isMultilingual) {
+    public boolean loadModel(String modelPath, String vocabPath, boolean isMultilingual) {
         try {
+            lastError = null;
             whisperEngine.initialize(modelPath, vocabPath, isMultilingual);
+            return true;
         } catch (IOException e) {
             Log.e(TAG, "Error initializing model", e);
-            sendUpdate("Model initialization failed");
+            lastError = e.getMessage();
+            sendUpdate("Model initialization failed: " + e.getMessage());
+            return false;
         }
     }
 
     public void unloadModel() {
         whisperEngine.deinitialize();
+        lastError = null;
     }
 
     public boolean isInProgress() {
@@ -64,6 +70,10 @@ public class Whisper {
 
     public List<DiarizationUtils.TextSegment> getLastSegments() {
         return whisperEngine.getTextSegments();
+    }
+
+    public String getLastError() {
+        return lastError;
     }
 
     public String transcribeBlocking(String wavFilePath) {

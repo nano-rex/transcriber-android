@@ -269,7 +269,11 @@ public class MainActivity extends AppCompatActivity {
             try {
                 File modelFile = ensureModelFile(selectedModel);
                 whisper.unloadModel();
-                whisper.loadModel(modelFile.getAbsolutePath(), "", selectedModel.multilingual);
+                if (!whisper.loadModel(modelFile.getAbsolutePath(), "", selectedModel.multilingual)) {
+                    throw new IllegalStateException(whisper.getLastError() == null
+                            ? "Model initialization failed"
+                            : whisper.getLastError());
+                }
                 wavParts = AudioImportUtil.splitWavForTranscription(this, currentImportedWav);
                 handler.post(transcriptionProgressUpdater);
                 TranscriptionBundle bundle = transcribeWavParts(wavParts);
