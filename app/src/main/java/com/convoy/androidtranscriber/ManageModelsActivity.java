@@ -28,6 +28,14 @@ public class ManageModelsActivity extends AppCompatActivity {
             "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-tiny/ggml-tiny.bin";
     private static final String SMALL_MODEL_URL =
             "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small/ggml-small.bin";
+    private static final String SMALL_MANDARIN_MODEL_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small-specialist/ggml-small-mandarin.bin";
+    private static final String SMALL_MALAY_MODEL_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small-specialist/ggml-small-malay.bin";
+    private static final String SMALL_CANTONESE_MODEL_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small-specialist/ggml-small-cantonese.bin";
+    private static final String SMALL_HOKKIEN_MODEL_URL =
+            "https://github.com/nano-rex/transcriber-android/releases/download/android-model-ggml-small-specialist/ggml-small-hokkien.bin";
 
     private EditText etSearch;
     private TextView tvStatus;
@@ -64,6 +72,10 @@ public class ManageModelsActivity extends AppCompatActivity {
         allRows.add(buildHostedRow("tiny-en", "ASR", "ggml-tiny.en.bin", TINY_EN_MODEL_URL, false));
         allRows.add(buildHostedRow("tiny", "ASR", "ggml-tiny.bin", TINY_MODEL_URL, true));
         allRows.add(buildHostedRow("small", "ASR", "ggml-small.bin", SMALL_MODEL_URL, true));
+        allRows.add(buildHostedRow("small-mandarin", "ASR", "ggml-small-mandarin.bin", SMALL_MANDARIN_MODEL_URL, true));
+        allRows.add(buildHostedRow("small-malay", "ASR", "ggml-small-malay.bin", SMALL_MALAY_MODEL_URL, true));
+        allRows.add(buildHostedRow("small-cantonese", "ASR", "ggml-small-cantonese.bin", SMALL_CANTONESE_MODEL_URL, true));
+        allRows.add(buildHostedRow("small-hokkien", "ASR", "ggml-small-hokkien.bin", SMALL_HOKKIEN_MODEL_URL, true));
 
         applyFilter(etSearch.getText() == null ? "" : etSearch.getText().toString());
     }

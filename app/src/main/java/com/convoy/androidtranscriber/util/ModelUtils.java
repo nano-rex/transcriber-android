@@ -18,6 +18,10 @@ public final class ModelUtils {
     public static final String TINY_EN = "tiny-en";
     public static final String TINY = "tiny";
     public static final String SMALL = "small";
+    public static final String SMALL_MANDARIN = "small-mandarin";
+    public static final String SMALL_MALAY = "small-malay";
+    public static final String SMALL_CANTONESE = "small-cantonese";
+    public static final String SMALL_HOKKIEN = "small-hokkien";
 
     public static String recommendModelTier(Context context) {
         HardwareAssessment tiny = assessHardware(context, TINY);
@@ -151,6 +155,10 @@ public final class ModelUtils {
 
     private static String knownModelLabel(String fileName) {
         String lower = fileName.toLowerCase(Locale.US);
+        if ("ggml-small-mandarin.bin".equals(lower)) return SMALL_MANDARIN;
+        if ("ggml-small-malay.bin".equals(lower)) return SMALL_MALAY;
+        if ("ggml-small-cantonese.bin".equals(lower)) return SMALL_CANTONESE;
+        if ("ggml-small-hokkien.bin".equals(lower)) return SMALL_HOKKIEN;
         if ("ggml-small.bin".equals(lower)) return SMALL;
         if ("ggml-tiny.bin".equals(lower)) return TINY;
         if ("ggml-tiny.en.bin".equals(lower)) return TINY_EN;

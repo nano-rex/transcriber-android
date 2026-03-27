@@ -52,6 +52,10 @@ Use `Manage Models` inside the app to download one of these hosted models:
 - `ggml-tiny.en.bin`
 - `ggml-tiny.bin`
 - `ggml-small.bin`
+- `ggml-small-mandarin.bin`
+- `ggml-small-malay.bin`
+- `ggml-small-cantonese.bin`
+- `ggml-small-hokkien.bin`
 
 After download, the model is stored locally on the device and used fully offline.
 
