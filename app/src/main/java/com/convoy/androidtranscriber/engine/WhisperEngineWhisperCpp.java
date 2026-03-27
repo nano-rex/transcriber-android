@@ -1,14 +1,17 @@
 package com.convoy.androidtranscriber.engine;
 
 import com.convoy.androidtranscriber.util.WaveUtil;
+import com.convoy.androidtranscriber.util.DiarizationUtils;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 
 public class WhisperEngineWhisperCpp implements WhisperEngine {
     private long contextPtr = 0L;
     private boolean initialized = false;
     private String languageHint = null;
+    private final List<DiarizationUtils.TextSegment> lastSegments = new ArrayList<>();
 
     @Override
     public boolean isInitialized() {
@@ -35,6 +38,7 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
         }
         initialized = false;
         languageHint = null;
+        lastSegments.clear();
     }
 
     @Override
@@ -46,6 +50,7 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
     @Override
     public String transcribeBuffer(float[] samples) {
         if (!isInitialized() || samples == null || samples.length == 0) return "";
+        lastSegments.clear();
         int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
         boolean ok = WhisperCppLib.fullTranscribe(contextPtr, threads, samples, languageHint);
         if (!ok) return "";
@@ -53,11 +58,19 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < count; i++) {
             String segment = WhisperCppLib.getTextSegment(contextPtr, i);
+            long startMs = WhisperCppLib.getTextSegmentStartMs(contextPtr, i);
+            long endMs = WhisperCppLib.getTextSegmentEndMs(contextPtr, i);
             if (segment != null && !segment.trim().isEmpty()) {
+                lastSegments.add(new DiarizationUtils.TextSegment(startMs / 1000.0, endMs / 1000.0, segment.trim()));
                 if (out.length() > 0) out.append(' ');
                 out.append(segment.trim());
             }
         }
         return out.toString().trim().replaceAll("\\s+", " ");
+    }
+
+    @Override
+    public List<DiarizationUtils.TextSegment> getTextSegments() {
+        return new ArrayList<>(lastSegments);
     }
 }

@@ -59,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private String latestTranscript = "";
     private String latestDiarized = "";
     private String latestSummary = "";
+    private List<DiarizationUtils.TextSegment> latestSegments = new ArrayList<>();
     private int defaultStatusColor;
     private final Runnable transcriptionProgressUpdater = new Runnable() {
         @Override
@@ -109,13 +110,14 @@ public class MainActivity extends AppCompatActivity {
             public void onResultReceived(String result) {
                 handler.post(() -> {
                     String safeResult = result == null ? "" : result.trim();
-                    String diarizedText = buildDiarizedText(safeResult);
+                    latestSegments = new ArrayList<>(whisper.getLastSegments());
+                    String diarizedText = buildDiarizedText(latestSegments);
                     String summaryText = SummaryUtils.buildSummaryReport(safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
                     latestSummary = summaryText;
                     btnViewResults.setEnabled(true);
-                    writeOutputsIfPossible(safeResult, diarizedText);
+                    writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
                     setStatusNormal();
                     openResultsWindow();
                 });
@@ -261,19 +263,20 @@ public class MainActivity extends AppCompatActivity {
                 whisper.loadModel(modelFile.getAbsolutePath(), "", selectedModel.multilingual);
                 wavParts = AudioImportUtil.splitWavForTranscription(this, currentImportedWav);
                 handler.post(transcriptionProgressUpdater);
-                String result = transcribeWavParts(wavParts);
+                TranscriptionBundle bundle = transcribeWavParts(wavParts);
                 handler.removeCallbacks(transcriptionProgressUpdater);
                 long elapsed = System.currentTimeMillis() - startTimeMs;
                 handler.post(() -> {
                     tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
-                    String safeResult = result == null ? "" : result.trim();
-                    String diarizedText = buildDiarizedText(safeResult);
+                    String safeResult = bundle.text == null ? "" : bundle.text.trim();
+                    latestSegments = new ArrayList<>(bundle.segments);
+                    String diarizedText = buildDiarizedText(latestSegments);
                     String summaryText = SummaryUtils.buildSummaryReport(safeResult);
                     latestTranscript = safeResult;
                     latestDiarized = diarizedText;
                     latestSummary = summaryText;
                     btnViewResults.setEnabled(true);
-                    writeOutputsIfPossible(safeResult, diarizedText);
+                    writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
                     setStatusNormal();
                     openResultsWindow();
                 });
@@ -287,12 +290,15 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    private String transcribeWavParts(List<File> wavParts) {
+    private TranscriptionBundle transcribeWavParts(List<File> wavParts) {
         if (wavParts == null || wavParts.isEmpty()) {
-            return whisper.transcribeBlocking(currentImportedWav.getAbsolutePath());
+            String text = whisper.transcribeBlocking(currentImportedWav.getAbsolutePath());
+            return new TranscriptionBundle(text == null ? "" : text, whisper.getLastSegments());
         }
 
         StringBuilder merged = new StringBuilder();
+        List<DiarizationUtils.TextSegment> mergedSegments = new ArrayList<>();
+        double offsetSeconds = 0.0;
         for (int i = 0; i < wavParts.size(); i++) {
             File part = wavParts.get(i);
             int partIndex = i + 1;
@@ -301,6 +307,13 @@ public class MainActivity extends AppCompatActivity {
                     "Status: transcribing part %d/%d... %d%%",
                     partIndex, wavParts.size(), Math.min(95, basePercent))));
             String partText = whisper.transcribeBlocking(part.getAbsolutePath());
+            for (DiarizationUtils.TextSegment seg : whisper.getLastSegments()) {
+                mergedSegments.add(new DiarizationUtils.TextSegment(
+                        seg.startSeconds + offsetSeconds,
+                        seg.endSeconds + offsetSeconds,
+                        seg.text
+                ));
+            }
             if (partText != null) {
                 partText = partText.trim();
                 if (!partText.isEmpty()) {
@@ -308,8 +321,9 @@ public class MainActivity extends AppCompatActivity {
                     merged.append(partText);
                 }
             }
+            offsetSeconds += WaveUtil.getSamples(part.getAbsolutePath()).length / 16000.0;
         }
-        return merged.toString();
+        return new TranscriptionBundle(merged.toString(), mergedSegments);
     }
 
     private File ensureModelFile(ModelSpec spec) throws IOException {
@@ -322,14 +336,14 @@ public class MainActivity extends AppCompatActivity {
         return file;
     }
 
-    private String buildDiarizedText(String transcript) {
+    private String buildDiarizedText(List<DiarizationUtils.TextSegment> segments) {
         if (currentImportedWav == null || !currentImportedWav.exists()) return "";
+        if (segments == null || segments.isEmpty()) return "";
         float[] samples = WaveUtil.getSamples(currentImportedWav.getAbsolutePath());
-        List<DiarizationUtils.TextSegment> segments = DiarizationUtils.buildTextSegments(transcript, samples.length);
         return DiarizationUtils.buildDiarizedTranscript(samples, segments);
     }
 
-    private void writeOutputsIfPossible(String transcript, String diarizedText) {
+    private void writeOutputsIfPossible(String transcript, List<DiarizationUtils.TextSegment> segments, String diarizedText) {
         if (currentImportedWav == null) return;
         try {
             File outputsDir = StorageUtils.outputsDir(this);
@@ -337,7 +351,6 @@ public class MainActivity extends AppCompatActivity {
             String base = currentImportedWav.getName();
             if (base.endsWith(".wav")) base = base.substring(0, base.length() - 4);
             float[] samples = WaveUtil.getSamples(currentImportedWav.getAbsolutePath());
-            List<DiarizationUtils.TextSegment> segments = DiarizationUtils.buildTextSegments(transcript, samples.length);
             String timestampedTranscript = DiarizationUtils.buildTimestampedTranscript(segments);
             File enhancedOutput = new File(outputsDir, base + ".enhanced.wav");
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -348,7 +361,7 @@ public class MainActivity extends AppCompatActivity {
             writeTextFile(new File(outputsDir, base + ".transcript.txt"), timestampedTranscript);
             writeTextFile(new File(outputsDir, base + ".summary.txt"), SummaryUtils.buildSummaryReport(transcript));
             writeTextFile(new File(outputsDir, base + ".diarized.srt"), diarizedText == null ? "" : diarizedText);
-            writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length);
+            writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length, segments == null ? 0 : segments.size());
         } catch (Exception e) {
             setStatusWarning();
             tvStatus.setText("Status: transcript done, but failed to write outputs: " + e.getMessage());
@@ -429,12 +442,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void writeMetadataFile(File file, String transcript, String diarizedText, int sampleCount) throws IOException {
+    private void writeMetadataFile(File file, String transcript, String diarizedText, int sampleCount, int segmentCount) throws IOException {
         double durationSeconds = sampleCount / 16000.0;
         String json = "{\n"
                 + "  \"input\": \"" + escapeJson(currentImportedWav.getAbsolutePath()) + "\",\n"
                 + "  \"model\": \"" + escapeJson(selectedModel == null ? "" : selectedModel.label) + "\",\n"
                 + "  \"duration_seconds\": " + String.format(Locale.US, "%.2f", durationSeconds) + ",\n"
+                + "  \"segment_count\": " + segmentCount + ",\n"
                 + "  \"transcript_chars\": " + (transcript == null ? 0 : transcript.length()) + ",\n"
                 + "  \"diarized_chars\": " + (diarizedText == null ? 0 : diarizedText.length()) + "\n"
                 + "}\n";
@@ -443,6 +457,16 @@ public class MainActivity extends AppCompatActivity {
 
     private static String escapeJson(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static final class TranscriptionBundle {
+        final String text;
+        final List<DiarizationUtils.TextSegment> segments;
+
+        TranscriptionBundle(String text, List<DiarizationUtils.TextSegment> segments) {
+            this.text = text == null ? "" : text;
+            this.segments = segments == null ? new ArrayList<>() : new ArrayList<>(segments);
+        }
     }
 
     @Override

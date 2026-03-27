@@ -1,6 +1,9 @@
 package com.convoy.androidtranscriber.engine;
 
+import com.convoy.androidtranscriber.util.DiarizationUtils;
+
 import java.io.IOException;
+import java.util.List;
 
 public interface WhisperEngine {
     boolean isInitialized();
@@ -8,4 +11,5 @@ public interface WhisperEngine {
     void deinitialize();
     String transcribeFile(String wavePath);
     String transcribeBuffer(float[] samples);
+    List<DiarizationUtils.TextSegment> getTextSegments();
 }

@@ -1,60 +1,12 @@
 package com.convoy.androidtranscriber.util;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 public final class DiarizationUtils {
     public static final int SAMPLE_RATE = 16000;
-    public static final int CHUNK_SECONDS = 30;
-    public static final int CHUNK_SAMPLES = SAMPLE_RATE * CHUNK_SECONDS;
 
     private DiarizationUtils() {}
-
-    public static List<TextSegment> buildTextSegments(String transcript, int totalSamples) {
-        String safe = transcript == null ? "" : transcript.trim();
-        if (safe.isEmpty()) return Collections.emptyList();
-
-        int chunkCount = Math.max(1, (int) Math.ceil(totalSamples / (double) CHUNK_SAMPLES));
-        String[] words = safe.split("\\s+");
-        List<TextSegment> segments = new ArrayList<>();
-
-        int wordsPerChunk = Math.max(1, (int) Math.ceil(words.length / (double) chunkCount));
-        int cursor = 0;
-        for (int i = 0; i < chunkCount; i++) {
-            int startSample = i * CHUNK_SAMPLES;
-            int endSample = Math.min(totalSamples, startSample + CHUNK_SAMPLES);
-            if (startSample >= endSample) break;
-
-            int endWord = Math.min(words.length, cursor + wordsPerChunk);
-            StringBuilder text = new StringBuilder();
-            for (int w = cursor; w < endWord; w++) {
-                if (text.length() > 0) text.append(' ');
-                text.append(words[w]);
-            }
-            cursor = endWord;
-
-            segments.add(new TextSegment(
-                    startSample / (double) SAMPLE_RATE,
-                    endSample / (double) SAMPLE_RATE,
-                    text.toString().trim()
-            ));
-            if (cursor >= words.length && i >= chunkCount - 1) break;
-        }
-
-        if (!segments.isEmpty() && cursor < words.length) {
-            TextSegment last = segments.get(segments.size() - 1);
-            StringBuilder merged = new StringBuilder(last.text);
-            while (cursor < words.length) {
-                if (merged.length() > 0) merged.append(' ');
-                merged.append(words[cursor++]);
-            }
-            segments.set(segments.size() - 1, new TextSegment(last.startSeconds, last.endSeconds, merged.toString()));
-        }
-
-        return segments;
-    }
 
     public static String buildTimestampedTranscript(List<TextSegment> segments) {
         StringBuilder out = new StringBuilder();

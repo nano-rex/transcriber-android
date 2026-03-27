@@ -5,9 +5,11 @@ import android.util.Log;
 
 import com.convoy.androidtranscriber.engine.WhisperEngine;
 import com.convoy.androidtranscriber.engine.WhisperEngineWhisperCpp;
+import com.convoy.androidtranscriber.util.DiarizationUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Whisper {
@@ -58,6 +60,10 @@ public class Whisper {
     public void start() {
         if (!inProgress.compareAndSet(false, true)) return;
         new Thread(this::transcribeFile).start();
+    }
+
+    public List<DiarizationUtils.TextSegment> getLastSegments() {
+        return whisperEngine.getTextSegments();
     }
 
     public String transcribeBlocking(String wavFilePath) {

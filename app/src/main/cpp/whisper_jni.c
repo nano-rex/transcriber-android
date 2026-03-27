@@ -78,3 +78,21 @@ Java_com_convoy_androidtranscriber_engine_WhisperCppLib_getTextSegment(
     const char *text = whisper_full_get_segment_text(context, index);
     return (*env)->NewStringUTF(env, text);
 }
+
+JNIEXPORT jlong JNICALL
+Java_com_convoy_androidtranscriber_engine_WhisperCppLib_getTextSegmentStartMs(
+        JNIEnv *env, jclass clazz, jlong context_ptr, jint index) {
+    UNUSED(env);
+    UNUSED(clazz);
+    struct whisper_context *context = (struct whisper_context *) context_ptr;
+    return (jlong) (whisper_full_get_segment_t0(context, index) * 10);
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_convoy_androidtranscriber_engine_WhisperCppLib_getTextSegmentEndMs(
+        JNIEnv *env, jclass clazz, jlong context_ptr, jint index) {
+    UNUSED(env);
+    UNUSED(clazz);
+    struct whisper_context *context = (struct whisper_context *) context_ptr;
+    return (jlong) (whisper_full_get_segment_t1(context, index) * 10);
+}
