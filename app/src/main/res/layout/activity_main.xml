@@ -23,28 +23,6 @@
         android:text="Hardware panel"
         android:textSize="14sp" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnTabHome"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Home" />
-
-        <Button
-            android:id="@+id/btnTabFolder"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:text="Folder" />
-    </LinearLayout>
-
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -99,5 +77,27 @@
 
         </LinearLayout>
     </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnTabHome"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Home" />
+
+        <Button
+            android:id="@+id/btnTabFolder"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Folder" />
+    </LinearLayout>
 
 </LinearLayout>

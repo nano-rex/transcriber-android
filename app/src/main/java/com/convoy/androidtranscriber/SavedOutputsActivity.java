@@ -43,10 +43,20 @@ public class SavedOutputsActivity extends AppCompatActivity {
         tvEmpty = findViewById(R.id.tvEmpty);
         btnDelete = findViewById(R.id.btnDelete);
         listOutputs = findViewById(R.id.listOutputs);
+        Button btnTabHome = findViewById(R.id.btnTabHome);
+        Button btnTabFolder = findViewById(R.id.btnTabFolder);
 
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_activated_1, filteredOutputs);
         listOutputs.setAdapter(adapter);
         listOutputs.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+
+        btnTabHome.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            finish();
+        });
+        btnTabFolder.setEnabled(false);
 
         etSearch.addTextChangedListener(new SimpleTextWatcher() {
             @Override
