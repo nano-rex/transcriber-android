@@ -86,7 +86,6 @@ public class MainActivity extends AppCompatActivity {
         Button btnPickFile = findViewById(R.id.btnPickFile);
         btnTranscribe = findViewById(R.id.btnTranscribe);
         Button btnSavedOutputs = findViewById(R.id.btnSavedOutputs);
-        Button btnManageModels = findViewById(R.id.btnManageModels);
         Button btnSettings = findViewById(R.id.btnSettings);
 
         recommendedTier = ModelUtils.recommendModelTier(this);
@@ -97,7 +96,6 @@ public class MainActivity extends AppCompatActivity {
         btnPickFile.setOnClickListener(v -> pickMediaLauncher.launch(new String[]{"audio/*", "video/*"}));
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
-        btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
         btnSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         btnViewResults.setOnClickListener(v -> openResultsWindow());
         spinnerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -196,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
     private String buildRecommendationText(String tier) {
         HardwareAssessment assessment = ModelUtils.assessHardware(this, tier);
         if (availableModels.isEmpty()) {
-            return "Recommended model: install tiny or tiny-en in Manage Models";
+            return "Recommended model: install tiny or tiny-en in Settings";
         }
         return String.format(Locale.US,
                 "Recommended model: %s (%d threads, %.1f/%.1f GB free RAM, load %.2f)",
@@ -250,7 +248,7 @@ public class MainActivity extends AppCompatActivity {
         }
         int modelIndex = spinnerModel.getSelectedItemPosition();
         if (availableModels.isEmpty()) {
-            tvStatus.setText("Status: no model installed. Open Manage Models and download tiny or tiny-en first");
+            tvStatus.setText("Status: no model installed. Open Settings and download tiny or tiny-en first");
             setStatusWarning();
             return;
         }
@@ -404,7 +402,7 @@ public class MainActivity extends AppCompatActivity {
     private void refreshHardwareStatus() {
         if (availableModels.isEmpty()) {
             setStatusWarning();
-            tvStatus.setText("Status: no model installed. Open Manage Models to download tiny or tiny-en");
+            tvStatus.setText("Status: no model installed. Open Settings to download tiny or tiny-en");
             btnTranscribe.setEnabled(false);
             return;
         }

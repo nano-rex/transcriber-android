@@ -1,5 +1,6 @@
 package com.convoy.androidtranscriber;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -23,6 +24,7 @@ public class SettingsActivity extends AppCompatActivity {
         Switch switchTrim = findViewById(R.id.switchTrim);
         TextView tvFolderPath = findViewById(R.id.tvFolderPath);
         Button btnFolderSetup = findViewById(R.id.btnFolderSetup);
+        Button btnManageModels = findViewById(R.id.btnManageModels);
 
         switchAiEnhance.setChecked(AppSettings.isAiEnhanceEnabled(this));
         switchTrim.setChecked(AppSettings.isTrimEnabled(this));
@@ -33,6 +35,7 @@ public class SettingsActivity extends AppCompatActivity {
         switchTrim.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) ->
                 AppSettings.setTrimEnabled(this, isChecked));
         btnFolderSetup.setOnClickListener(v -> showFolderModeDialog(tvFolderPath));
+        btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
     }
 
     private void showFolderModeDialog(TextView tvFolderPath) {
