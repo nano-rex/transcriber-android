@@ -101,7 +101,13 @@ public class MainActivity extends AppCompatActivity {
         ensureBundledSampleReady();
         refreshHardwarePanel();
 
-        btnPickFile.setOnClickListener(v -> pickMediaLauncher.launch(new String[]{"audio/*", "video/*"}));
+        btnPickFile.setOnClickListener(v -> {
+            if (!StorageUtils.isWorkspaceConfigured(this)) {
+                setStatusMessage("Status: set the workspace folder in Settings first", true);
+                return;
+            }
+            pickMediaLauncher.launch(new String[]{"audio/*", "video/*"});
+        });
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSavedOutputs.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
         btnSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
@@ -214,6 +220,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void ensureBundledSampleReady() {
+        if (!StorageUtils.isWorkspaceConfigured(this)) {
+            currentImportedWav = null;
+            tvSelectedFile.setText("Workspace folder not set");
+            return;
+        }
         try {
             File sampleOut = new File(StorageUtils.importsDir(this), "jfk.wav");
             AssetUtils.copyAssetToFile(this, DEFAULT_SAMPLE_ASSET, sampleOut);
@@ -226,6 +237,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void onMediaPicked(Uri uri) {
         if (uri == null) return;
+        if (!StorageUtils.isWorkspaceConfigured(this)) {
+            setStatusMessage("Status: set the workspace folder in Settings first", true);
+            return;
+        }
         setStatusMessage("Status: importing media...", false);
         new Thread(() -> {
             try {
@@ -249,6 +264,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void startTranscription() {
         if (!ensureWhisper()) {
+            return;
+        }
+        if (!StorageUtils.isWorkspaceConfigured(this)) {
+            setStatusMessage("Status: set the workspace folder in Settings first", true);
             return;
         }
         if (currentImportedWav == null || !currentImportedWav.exists()) {
@@ -403,6 +422,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshHardwareStatus() {
+        if (!StorageUtils.isWorkspaceConfigured(this)) {
+            setStatusMessage("Status: workspace folder not set. Open Settings to choose a folder", true);
+            btnTranscribe.setEnabled(false);
+            return;
+        }
         if (availableModels.isEmpty()) {
             setStatusMessage("Status: no model installed. Open Settings to download tiny or tiny-en", true);
             btnTranscribe.setEnabled(false);

@@ -45,7 +45,7 @@ public final class AppSettings {
     }
 
     public static String getStorageMode(Context context) {
-        return prefs(context).getString(KEY_STORAGE_MODE, STORAGE_DOCUMENTS);
+        return prefs(context).getString(KEY_STORAGE_MODE, null);
     }
 
     public static void setStorageMode(Context context, String storageMode) {

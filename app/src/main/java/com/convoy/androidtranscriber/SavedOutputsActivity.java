@@ -70,6 +70,13 @@ public class SavedOutputsActivity extends AppCompatActivity {
         selectedIndex = -1;
         listOutputs.clearChoices();
 
+        if (!StorageUtils.isWorkspaceConfigured(this)) {
+            adapter.notifyDataSetChanged();
+            tvEmpty.setText("Workspace folder not set.");
+            btnDelete.setEnabled(false);
+            return;
+        }
+
         File outputsDir = StorageUtils.outputsDir(this);
         Map<String, SavedOutput> grouped = new HashMap<>();
         File[] files = outputsDir.listFiles();

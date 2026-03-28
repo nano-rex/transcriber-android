@@ -2,7 +2,6 @@ package com.convoy.androidtranscriber;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Toast;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.Switch;
@@ -55,18 +54,12 @@ public class SettingsActivity extends AppCompatActivity {
                 .setItems(labels, (dialog, which) -> {
                     String nextMode = values[which];
                     String currentMode = AppSettings.getStorageMode(this);
-                    if (currentMode.equals(nextMode)) {
+                    if (nextMode.equals(currentMode)) {
                         refreshFolderPath(tvFolderPath);
                         return;
                     }
-                    try {
-                        StorageUtils.migrateWorkspace(this, currentMode, nextMode);
-                        AppSettings.setStorageMode(this, nextMode);
-                        refreshFolderPath(tvFolderPath);
-                        Toast.makeText(this, "Workspace moved to " + StorageUtils.describeBaseDirForMode(this, nextMode), Toast.LENGTH_LONG).show();
-                    } catch (Exception e) {
-                        Toast.makeText(this, "Folder change failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    }
+                    AppSettings.setStorageMode(this, nextMode);
+                    refreshFolderPath(tvFolderPath);
                 })
                 .show();
     }
