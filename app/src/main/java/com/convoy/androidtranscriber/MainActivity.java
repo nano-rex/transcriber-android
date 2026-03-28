@@ -11,8 +11,6 @@ import android.os.Looper;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -38,24 +36,17 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     private static final String DEFAULT_SAMPLE_ASSET = "audio/jfk.wav";
 
     private TextView tvHardwarePanel;
     private TextView tvSelectedFile;
-    private TextView tvFolderStatus;
     private Spinner spinnerModel;
     private Button btnViewResults;
     private Button btnTranscribe;
-    private LinearLayout layoutHomePage;
-    private LinearLayout layoutFolderPage;
-    private ListView listOutputs;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Whisper whisper;
@@ -67,10 +58,6 @@ public class MainActivity extends AppCompatActivity {
     private String latestTranscript = "";
     private String latestDiarized = "";
     private List<DiarizationUtils.TextSegment> latestSegments = new ArrayList<>();
-    private final List<SavedOutput> allOutputs = new ArrayList<>();
-    private final List<SavedOutput> filteredOutputs = new ArrayList<>();
-    private ArrayAdapter<SavedOutput> outputsAdapter;
-    private int selectedOutputIndex = -1;
     private int defaultStatusColor;
     private String statusMessage = "Status: idle";
     private boolean statusWarning = false;
@@ -102,32 +89,19 @@ public class MainActivity extends AppCompatActivity {
 
         tvHardwarePanel = findViewById(R.id.tvHardwarePanel);
         tvSelectedFile = findViewById(R.id.tvSelectedFile);
-        tvFolderStatus = findViewById(R.id.tvFolderStatus);
         defaultStatusColor = tvHardwarePanel.getCurrentTextColor();
         spinnerModel = findViewById(R.id.spinnerModel);
         btnViewResults = findViewById(R.id.btnViewResults);
-        layoutHomePage = findViewById(R.id.layoutHomePage);
-        layoutFolderPage = findViewById(R.id.layoutFolderPage);
-        listOutputs = findViewById(R.id.listOutputs);
         Button btnPickFile = findViewById(R.id.btnPickFile);
         btnTranscribe = findViewById(R.id.btnTranscribe);
         Button btnSettings = findViewById(R.id.btnSettings);
         Button btnTabHome = findViewById(R.id.btnTabHome);
         Button btnTabFolder = findViewById(R.id.btnTabFolder);
-        Button btnFolderSetupPage = findViewById(R.id.btnFolderSetupPage);
-        Button btnRefreshFolder = findViewById(R.id.btnRefreshFolder);
-        Button btnDeleteOutput = findViewById(R.id.btnDeleteOutput);
-
-        outputsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_activated_1, filteredOutputs);
-        listOutputs.setAdapter(outputsAdapter);
-        listOutputs.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
         recommendedTier = ModelUtils.recommendModelTier(this);
         setupModelSpinner();
         ensureBundledSampleReady();
-        refreshSavedOutputs();
         refreshHardwarePanel();
-        showHomeTab();
 
         btnPickFile.setOnClickListener(v -> {
             if (!StorageUtils.isWorkspaceConfigured(this)) {
@@ -139,16 +113,8 @@ public class MainActivity extends AppCompatActivity {
         btnTranscribe.setOnClickListener(v -> startTranscription());
         btnSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         btnViewResults.setOnClickListener(v -> openResultsWindow());
-        btnTabHome.setOnClickListener(v -> showHomeTab());
-        btnTabFolder.setOnClickListener(v -> showFolderTab());
-        btnFolderSetupPage.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
-        btnRefreshFolder.setOnClickListener(v -> refreshSavedOutputs());
-        btnDeleteOutput.setOnClickListener(v -> deleteSelectedOutput());
-        listOutputs.setOnItemClickListener((parent, view, position, id) -> {
-            selectedOutputIndex = position;
-            listOutputs.setItemChecked(position, true);
-            openSavedOutput(filteredOutputs.get(position));
-        });
+        btnTabHome.setEnabled(false);
+        btnTabFolder.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
         spinnerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
@@ -208,7 +174,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         setupModelSpinner();
-        refreshSavedOutputs();
         handler.post(hardwarePanelUpdater);
     }
 
@@ -245,17 +210,6 @@ public class MainActivity extends AppCompatActivity {
         spinnerModel.setEnabled(!availableModels.isEmpty());
         btnTranscribe.setEnabled(!availableModels.isEmpty());
         refreshHardwareStatus();
-    }
-
-    private void showHomeTab() {
-        layoutHomePage.setVisibility(android.view.View.VISIBLE);
-        layoutFolderPage.setVisibility(android.view.View.GONE);
-    }
-
-    private void showFolderTab() {
-        layoutHomePage.setVisibility(android.view.View.GONE);
-        layoutFolderPage.setVisibility(android.view.View.VISIBLE);
-        refreshSavedOutputs();
     }
 
     private String buildRecommendationText(String tier) {
@@ -369,7 +323,6 @@ public class MainActivity extends AppCompatActivity {
                     latestDiarized = diarizedText;
                     btnViewResults.setEnabled(true);
                     writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
-                    refreshSavedOutputs();
                     openResultsWindow();
                 });
             } catch (Exception e) {
@@ -469,94 +422,6 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra(ResultsActivity.EXTRA_TRANSCRIPT, latestTranscript);
         intent.putExtra(ResultsActivity.EXTRA_DIARIZED, latestDiarized);
         startActivity(intent);
-    }
-
-    private void refreshSavedOutputs() {
-        allOutputs.clear();
-        filteredOutputs.clear();
-        selectedOutputIndex = -1;
-        listOutputs.clearChoices();
-
-        Button btnFolderSetupPage = findViewById(R.id.btnFolderSetupPage);
-        Button btnDeleteOutput = findViewById(R.id.btnDeleteOutput);
-        if (!StorageUtils.isWorkspaceConfigured(this)) {
-            btnFolderSetupPage.setVisibility(android.view.View.VISIBLE);
-            tvFolderStatus.setText("Workspace folder not set. Choose a folder in Settings.");
-            outputsAdapter.notifyDataSetChanged();
-            btnDeleteOutput.setEnabled(false);
-            return;
-        }
-
-        btnFolderSetupPage.setVisibility(android.view.View.GONE);
-        File outputsDir = StorageUtils.outputsDir(this);
-        Map<String, SavedOutput> grouped = new HashMap<>();
-        File[] files = outputsDir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                String name = file.getName();
-                if (name.endsWith(".transcript.txt")) {
-                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".transcript.txt"), SavedOutput::new);
-                    entry.transcriptFile = file;
-                } else if (name.endsWith(".diarized.srt")) {
-                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".diarized.srt"), SavedOutput::new);
-                    entry.diarizedFile = file;
-                } else if (name.endsWith(".meta.json")) {
-                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".meta.json"), SavedOutput::new);
-                    entry.metaFile = file;
-                } else if (name.endsWith(".enhanced.wav")) {
-                    SavedOutput entry = grouped.computeIfAbsent(baseName(name, ".enhanced.wav"), SavedOutput::new);
-                    entry.enhancedAudioFile = file;
-                }
-            }
-        }
-        allOutputs.addAll(grouped.values());
-        Collections.sort(allOutputs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-        filteredOutputs.addAll(allOutputs);
-        outputsAdapter.notifyDataSetChanged();
-        tvFolderStatus.setText(filteredOutputs.isEmpty() ? "No saved outputs found." : "Saved outputs: " + filteredOutputs.size());
-        btnDeleteOutput.setEnabled(!filteredOutputs.isEmpty());
-    }
-
-    private void openSavedOutput(SavedOutput output) {
-        Intent intent = new Intent(this, ResultsActivity.class);
-        intent.putExtra(ResultsActivity.EXTRA_TITLE, output.baseName);
-        if (output.transcriptFile != null) {
-            intent.putExtra(ResultsActivity.EXTRA_TRANSCRIPT_PATH, output.transcriptFile.getAbsolutePath());
-        }
-        if (output.diarizedFile != null) {
-            intent.putExtra(ResultsActivity.EXTRA_DIARIZED_PATH, output.diarizedFile.getAbsolutePath());
-        }
-        startActivity(intent);
-    }
-
-    private void deleteSelectedOutput() {
-        if (selectedOutputIndex < 0 || selectedOutputIndex >= filteredOutputs.size()) {
-            tvFolderStatus.setText("Select an item to delete.");
-            return;
-        }
-        SavedOutput output = filteredOutputs.get(selectedOutputIndex);
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Delete saved output")
-                .setMessage("Delete " + output.baseName + "?")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    deleteIfExists(output.transcriptFile);
-                    deleteIfExists(output.diarizedFile);
-                    deleteIfExists(output.metaFile);
-                    deleteIfExists(output.enhancedAudioFile);
-                    refreshSavedOutputs();
-                })
-                .show();
-    }
-
-    private static void deleteIfExists(@Nullable File file) {
-        if (file != null && file.exists()) {
-            file.delete();
-        }
-    }
-
-    private static String baseName(String value, String suffix) {
-        return value.substring(0, value.length() - suffix.length());
     }
 
     private void refreshHardwareStatus() {
@@ -688,32 +553,6 @@ public class MainActivity extends AppCompatActivity {
         TranscriptionBundle(String text, List<DiarizationUtils.TextSegment> segments) {
             this.text = text == null ? "" : text;
             this.segments = segments == null ? new ArrayList<>() : new ArrayList<>(segments);
-        }
-    }
-
-    private static final class SavedOutput {
-        final String baseName;
-        File transcriptFile;
-        File diarizedFile;
-        File metaFile;
-        File enhancedAudioFile;
-
-        SavedOutput(String baseName) {
-            this.baseName = baseName;
-        }
-
-        long lastModified() {
-            long latest = 0L;
-            if (transcriptFile != null) latest = Math.max(latest, transcriptFile.lastModified());
-            if (diarizedFile != null) latest = Math.max(latest, diarizedFile.lastModified());
-            if (metaFile != null) latest = Math.max(latest, metaFile.lastModified());
-            if (enhancedAudioFile != null) latest = Math.max(latest, enhancedAudioFile.lastModified());
-            return latest;
-        }
-
-        @Override
-        public String toString() {
-            return baseName;
         }
     }
 
