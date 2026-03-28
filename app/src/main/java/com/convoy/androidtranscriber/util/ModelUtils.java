@@ -87,9 +87,7 @@ public final class ModelUtils {
     }
 
     public static File customModelsDir(Context context) {
-        File dir = new File(context.getFilesDir(), "models-custom");
-        if (!dir.exists()) dir.mkdirs();
-        return dir;
+        return StorageUtils.customModelsDir(context);
     }
 
     public static HardwareAssessment assessHardware(Context context, String tier) {

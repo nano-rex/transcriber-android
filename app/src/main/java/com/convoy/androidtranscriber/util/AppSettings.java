@@ -8,6 +8,11 @@ public final class AppSettings {
     private static final String KEY_AI_ENHANCE = "ai_enhance_enabled";
     private static final String KEY_TRIM = "trim_enabled";
     private static final String KEY_SELECTED_MODEL_ID = "selected_model_id";
+    private static final String KEY_STORAGE_MODE = "storage_mode";
+
+    public static final String STORAGE_DOCUMENTS = "documents";
+    public static final String STORAGE_DOWNLOADS = "downloads";
+    public static final String STORAGE_INTERNAL = "internal";
 
     private AppSettings() {}
 
@@ -37,5 +42,13 @@ public final class AppSettings {
 
     public static void setSelectedModelId(Context context, String modelId) {
         prefs(context).edit().putString(KEY_SELECTED_MODEL_ID, modelId).apply();
+    }
+
+    public static String getStorageMode(Context context) {
+        return prefs(context).getString(KEY_STORAGE_MODE, STORAGE_DOCUMENTS);
+    }
+
+    public static void setStorageMode(Context context, String storageMode) {
+        prefs(context).edit().putString(KEY_STORAGE_MODE, storageMode).apply();
     }
 }

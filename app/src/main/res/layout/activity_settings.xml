@@ -32,5 +32,20 @@
             android:text="Enable trimming"
             android:checked="true" />
 
+        <TextView
+            android:id="@+id/tvFolderPath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Current base folder:"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnFolderSetup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Folder Setup" />
+
     </LinearLayout>
 </ScrollView>

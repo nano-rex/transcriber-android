@@ -45,8 +45,7 @@ public final class AudioImportUtil {
         if (displayName == null) displayName = "imported_audio";
         notifyProgress(listener, 5, "preparing import");
 
-        File importsDir = new File(context.getFilesDir(), "imports");
-        if (!importsDir.exists()) importsDir.mkdirs();
+        File importsDir = StorageUtils.importsDir(context);
 
         String lower = displayName.toLowerCase(Locale.US);
         File outFile = new File(importsDir, sanitizeBaseName(displayName) + ".wav");
@@ -222,7 +221,7 @@ public final class AudioImportUtil {
     }
 
     private static File ensureAiDenoiseModel(Context context) throws IOException {
-        File modelFile = new File(new File(context.getFilesDir(), "denoise"), "std.rnnn");
+        File modelFile = new File(StorageUtils.denoiseDir(context), "std.rnnn");
         return AssetUtils.copyAssetToFile(context, AI_DENOISE_MODEL_ASSET, modelFile);
     }
 
@@ -412,8 +411,7 @@ public final class AudioImportUtil {
         int chunkSamples = TRANSCRIBE_CHUNK_SECONDS * sampleRate;
         if (samples.length <= chunkSamples) return List.of(wavFile);
 
-        File chunksDir = new File(context.getFilesDir(), "chunks");
-        if (!chunksDir.exists()) chunksDir.mkdirs();
+        File chunksDir = StorageUtils.chunksDir(context);
 
         List<File> parts = new ArrayList<>();
         int partIndex = 0;

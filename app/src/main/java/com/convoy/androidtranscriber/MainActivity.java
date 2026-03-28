@@ -205,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void ensureBundledSampleReady() {
         try {
-            File sampleOut = new File(new File(getFilesDir(), "imports"), "jfk.wav");
+            File sampleOut = new File(StorageUtils.importsDir(this), "jfk.wav");
             AssetUtils.copyAssetToFile(this, DEFAULT_SAMPLE_ASSET, sampleOut);
             currentImportedWav = sampleOut;
             tvSelectedFile.setText("Selected file: bundled sample jfk.wav");
@@ -348,7 +348,7 @@ public class MainActivity extends AppCompatActivity {
 
     private File ensureModelFile(ModelSpec spec) throws IOException {
         if (spec.bundled) {
-            File outFile = new File(new File(getFilesDir(), "models"), new File(spec.assetPath).getName());
+            File outFile = new File(StorageUtils.modelsDir(this), new File(spec.assetPath).getName());
             return AssetUtils.copyAssetToFile(this, spec.assetPath, outFile);
         }
         File file = new File(spec.assetPath);
