@@ -3,6 +3,7 @@ package com.convoy.androidtranscriber;
 import android.app.ActivityManager;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -41,9 +42,8 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
     private static final String DEFAULT_SAMPLE_ASSET = "audio/jfk.wav";
 
-    private TextView tvModelRecommendation;
+    private TextView tvHardwarePanel;
     private TextView tvSelectedFile;
-    private TextView tvStatus;
     private Spinner spinnerModel;
     private Button btnViewResults;
     private Button btnTranscribe;
@@ -59,13 +59,22 @@ public class MainActivity extends AppCompatActivity {
     private String latestDiarized = "";
     private List<DiarizationUtils.TextSegment> latestSegments = new ArrayList<>();
     private int defaultStatusColor;
+    private String statusMessage = "Status: idle";
+    private boolean statusWarning = false;
+    private final Runnable hardwarePanelUpdater = new Runnable() {
+        @Override
+        public void run() {
+            refreshHardwarePanel();
+            handler.postDelayed(this, 1500);
+        }
+    };
     private final Runnable transcriptionProgressUpdater = new Runnable() {
         @Override
         public void run() {
             if (whisper == null || !whisper.isInProgress()) return;
             long elapsed = System.currentTimeMillis() - startTimeMs;
             int percent = estimateTranscriptionPercent(elapsed);
-            tvStatus.setText(String.format(Locale.US, "Status: transcribing... %d%%", percent));
+            setStatusMessage(String.format(Locale.US, "Status: transcribing... %d%%", percent), false);
             handler.postDelayed(this, 700);
         }
     };
@@ -77,10 +86,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        tvModelRecommendation = findViewById(R.id.tvModelRecommendation);
+        tvHardwarePanel = findViewById(R.id.tvHardwarePanel);
         tvSelectedFile = findViewById(R.id.tvSelectedFile);
-        tvStatus = findViewById(R.id.tvStatus);
-        defaultStatusColor = tvStatus.getCurrentTextColor();
+        defaultStatusColor = tvHardwarePanel.getCurrentTextColor();
         spinnerModel = findViewById(R.id.spinnerModel);
         btnViewResults = findViewById(R.id.btnViewResults);
         Button btnPickFile = findViewById(R.id.btnPickFile);
@@ -89,9 +97,9 @@ public class MainActivity extends AppCompatActivity {
         Button btnSettings = findViewById(R.id.btnSettings);
 
         recommendedTier = ModelUtils.recommendModelTier(this);
-        tvModelRecommendation.setText(buildRecommendationText(recommendedTier));
         setupModelSpinner();
         ensureBundledSampleReady();
+        refreshHardwarePanel();
 
         btnPickFile.setOnClickListener(v -> pickMediaLauncher.launch(new String[]{"audio/*", "video/*"}));
         btnTranscribe.setOnClickListener(v -> startTranscription());
@@ -124,9 +132,9 @@ public class MainActivity extends AppCompatActivity {
                         if (Whisper.MSG_PROCESSING_DONE.equals(message)) {
                             handler.removeCallbacks(transcriptionProgressUpdater);
                             long elapsed = System.currentTimeMillis() - startTimeMs;
-                            tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
+                            setStatusMessage("Status: processing done in " + elapsed + " ms (100%)", false);
                         } else {
-                            tvStatus.setText("Status: " + message);
+                            setStatusMessage("Status: " + message, false);
                         }
                     });
                 }
@@ -141,7 +149,6 @@ public class MainActivity extends AppCompatActivity {
                         latestDiarized = diarizedText;
                         btnViewResults.setEnabled(true);
                         writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
-                        setStatusNormal();
                         openResultsWindow();
                     });
                 }
@@ -149,8 +156,7 @@ public class MainActivity extends AppCompatActivity {
             return true;
         } catch (Throwable t) {
             whisper = null;
-            setStatusWarning();
-            tvStatus.setText("Status: transcription runtime unavailable on this device");
+            setStatusMessage("Status: transcription runtime unavailable on this device", true);
             return false;
         }
     }
@@ -159,6 +165,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         setupModelSpinner();
+        handler.post(hardwarePanelUpdater);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        handler.removeCallbacks(hardwarePanelUpdater);
     }
 
     private void setupModelSpinner() {
@@ -187,7 +200,6 @@ public class MainActivity extends AppCompatActivity {
         spinnerModel.setSelection(Math.max(0, Math.min(recommendedIndex, labels.size() - 1)));
         spinnerModel.setEnabled(!availableModels.isEmpty());
         btnTranscribe.setEnabled(!availableModels.isEmpty());
-        tvModelRecommendation.setText(buildRecommendationText(recommendedTier));
         refreshHardwareStatus();
     }
 
@@ -208,15 +220,13 @@ public class MainActivity extends AppCompatActivity {
             currentImportedWav = sampleOut;
             tvSelectedFile.setText("Selected file: bundled sample jfk.wav");
         } catch (IOException e) {
-            setStatusWarning();
-            tvStatus.setText("Status: failed to prepare bundled sample: " + e.getMessage());
+            setStatusMessage("Status: failed to prepare bundled sample: " + e.getMessage(), true);
         }
     }
 
     private void onMediaPicked(Uri uri) {
         if (uri == null) return;
-        tvStatus.setText("Status: importing media...");
-        setStatusNormal();
+        setStatusMessage("Status: importing media...", false);
         new Thread(() -> {
             try {
                 getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -225,15 +235,14 @@ public class MainActivity extends AppCompatActivity {
 
             try {
                 AudioImportUtil.ImportedAudio imported = AudioImportUtil.importToWav(this, uri, (percent, stage) ->
-                        handler.post(() -> tvStatus.setText("Status: importing media... " + percent + "% (" + stage + ")")));
+                        handler.post(() -> setStatusMessage("Status: importing media... " + percent + "% (" + stage + ")", false)));
                 currentImportedWav = imported.wavFile;
                 handler.post(() -> {
                     tvSelectedFile.setText("Selected file: " + imported.displayName + "\nEnhanced WAV: " + imported.wavFile.getAbsolutePath());
-                    tvStatus.setText("Status: media imported and normalized to WAV (100%)");
+                    setStatusMessage("Status: media imported and normalized to WAV (100%)", false);
                 });
             } catch (IOException e) {
-                handler.post(this::setStatusWarning);
-                handler.post(() -> tvStatus.setText("Status: import failed - " + e.getMessage()));
+                handler.post(() -> setStatusMessage("Status: import failed - " + e.getMessage(), true));
             }
         }).start();
     }
@@ -243,17 +252,16 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         if (currentImportedWav == null || !currentImportedWav.exists()) {
-            tvStatus.setText("Status: pick a media file first");
+            setStatusMessage("Status: pick a media file first", true);
             return;
         }
         int modelIndex = spinnerModel.getSelectedItemPosition();
         if (availableModels.isEmpty()) {
-            tvStatus.setText("Status: no model installed. Open Settings and download tiny or tiny-en first");
-            setStatusWarning();
+            setStatusMessage("Status: no model installed. Open Settings and download tiny or tiny-en first", true);
             return;
         }
         if (modelIndex < 0 || modelIndex >= availableModels.size()) {
-            tvStatus.setText("Status: pick a model first");
+            setStatusMessage("Status: pick a model first", true);
             return;
         }
         selectedModel = availableModels.get(modelIndex);
@@ -263,11 +271,9 @@ public class MainActivity extends AppCompatActivity {
         latestDiarized = "";
         btnViewResults.setEnabled(false);
         if (assessment.canRun) {
-            setStatusNormal();
-            tvStatus.setText("Status: preparing model...");
+            setStatusMessage("Status: preparing model...", false);
         } else {
-            setStatusWarning();
-            tvStatus.setText("Status: warning - " + assessment.message);
+            setStatusMessage("Status: warning - " + assessment.message, true);
         }
 
         new Thread(() -> {
@@ -287,7 +293,7 @@ public class MainActivity extends AppCompatActivity {
                 handler.removeCallbacks(transcriptionProgressUpdater);
                 long elapsed = System.currentTimeMillis() - startTimeMs;
                 handler.post(() -> {
-                    tvStatus.setText("Status: processing done in " + elapsed + " ms (100%)");
+                    setStatusMessage("Status: processing done in " + elapsed + " ms (100%)", false);
                     String safeResult = bundle.text == null ? "" : bundle.text.trim();
                     latestSegments = new ArrayList<>(bundle.segments);
                     String diarizedText = buildDiarizedText(latestSegments);
@@ -295,13 +301,11 @@ public class MainActivity extends AppCompatActivity {
                     latestDiarized = diarizedText;
                     btnViewResults.setEnabled(true);
                     writeOutputsIfPossible(safeResult, latestSegments, diarizedText);
-                    setStatusNormal();
                     openResultsWindow();
                 });
             } catch (Exception e) {
                 handler.removeCallbacks(transcriptionProgressUpdater);
-                handler.post(this::setStatusWarning);
-                handler.post(() -> tvStatus.setText("Status: failed to start transcription - " + e.getMessage()));
+                handler.post(() -> setStatusMessage("Status: failed to start transcription - " + e.getMessage(), true));
             } finally {
                 AudioImportUtil.cleanupSplitWavParts(currentImportedWav, wavParts);
             }
@@ -321,9 +325,9 @@ public class MainActivity extends AppCompatActivity {
             File part = wavParts.get(i);
             int partIndex = i + 1;
             int basePercent = (int) Math.round((i * 100.0) / wavParts.size());
-            handler.post(() -> tvStatus.setText(String.format(Locale.US,
+            handler.post(() -> setStatusMessage(String.format(Locale.US,
                     "Status: transcribing part %d/%d... %d%%",
-                    partIndex, wavParts.size(), Math.min(95, basePercent))));
+                    partIndex, wavParts.size(), Math.min(95, basePercent)), false));
             String partText = whisper.transcribeBlocking(part.getAbsolutePath());
             for (DiarizationUtils.TextSegment seg : whisper.getLastSegments()) {
                 mergedSegments.add(new DiarizationUtils.TextSegment(
@@ -380,8 +384,7 @@ public class MainActivity extends AppCompatActivity {
             writeTextFile(new File(outputsDir, base + ".diarized.srt"), diarizedText == null ? "" : diarizedText);
             writeMetadataFile(new File(outputsDir, base + ".meta.json"), transcript, diarizedText, samples.length, segments == null ? 0 : segments.size());
         } catch (Exception e) {
-            setStatusWarning();
-            tvStatus.setText("Status: transcript done, but failed to write outputs: " + e.getMessage());
+            setStatusMessage("Status: transcript done, but failed to write outputs: " + e.getMessage(), true);
         }
     }
 
@@ -401,26 +404,24 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshHardwareStatus() {
         if (availableModels.isEmpty()) {
-            setStatusWarning();
-            tvStatus.setText("Status: no model installed. Open Settings to download tiny or tiny-en");
+            setStatusMessage("Status: no model installed. Open Settings to download tiny or tiny-en", true);
             btnTranscribe.setEnabled(false);
             return;
         }
         int modelIndex = spinnerModel.getSelectedItemPosition();
         if (modelIndex < 0 || modelIndex >= availableModels.size()) {
             btnTranscribe.setEnabled(false);
+            refreshHardwarePanel();
             return;
         }
         ModelSpec spec = availableModels.get(modelIndex);
         HardwareAssessment assessment = ModelUtils.assessHardware(this, spec.tierHint());
         if (assessment.canRun) {
-            setStatusNormal();
-            tvStatus.setText(String.format(Locale.US,
+            setStatusMessage(String.format(Locale.US,
                     "Status: ready. Using %.1f GB RAM, %.1f GB free, model needs %.1f GB",
-                    assessment.usedRamGb, assessment.availRamGb, assessment.estimatedModelRamGb));
+                    assessment.usedRamGb, assessment.availRamGb, assessment.estimatedModelRamGb), false);
         } else {
-            setStatusWarning();
-            tvStatus.setText("Status: warning - " + assessment.message);
+            setStatusMessage("Status: warning - " + assessment.message, true);
         }
     }
 
@@ -440,12 +441,55 @@ public class MainActivity extends AppCompatActivity {
         return 1.1;
     }
 
-    private void setStatusWarning() {
-        tvStatus.setTextColor(Color.RED);
+    private void refreshHardwarePanel() {
+        String tier = selectedTierForPanel();
+        HardwareAssessment assessment = ModelUtils.assessHardware(this, tier);
+        String recommendation = buildRecommendationText(recommendedTier);
+        String selected = selectedModelLabel();
+        int cpuPercent = Math.min(999, (int) Math.round((assessment.systemLoad / Math.max(1, assessment.cpuThreads)) * 100.0));
+        String details = String.format(Locale.US,
+                "Hardware\nThreads: %d\nRAM: %.1f / %.1f GB used, %.1f GB free\nLoad: %.2f (%d%% of %d threads)\nModel budget: %.1f GB\nSelected: %s\n\n%s\n%s",
+                assessment.cpuThreads,
+                assessment.usedRamGb,
+                assessment.totalRamGb,
+                assessment.availRamGb,
+                assessment.systemLoad,
+                cpuPercent,
+                assessment.cpuThreads,
+                assessment.estimatedModelRamGb,
+                selected,
+                recommendation,
+                statusMessage);
+        tvHardwarePanel.setText(details);
+        boolean highUsage = !assessment.canRun || cpuPercent >= 90 || assessment.availRamGb < (assessment.estimatedModelRamGb + 0.4);
+        GradientDrawable box = new GradientDrawable();
+        box.setCornerRadius(18f);
+        box.setStroke(2, highUsage || statusWarning ? Color.RED : Color.DKGRAY);
+        box.setColor(highUsage || statusWarning ? Color.parseColor("#FFF0F0") : Color.parseColor("#F2F2F2"));
+        tvHardwarePanel.setBackground(box);
+        tvHardwarePanel.setTextColor(highUsage || statusWarning ? Color.RED : defaultStatusColor);
     }
 
-    private void setStatusNormal() {
-        tvStatus.setTextColor(defaultStatusColor);
+    private void setStatusMessage(String message, boolean warning) {
+        statusMessage = message;
+        statusWarning = warning;
+        refreshHardwarePanel();
+    }
+
+    private String selectedTierForPanel() {
+        int modelIndex = spinnerModel.getSelectedItemPosition();
+        if (modelIndex >= 0 && modelIndex < availableModels.size()) {
+            return availableModels.get(modelIndex).tierHint();
+        }
+        return recommendedTier == null ? ModelUtils.TINY : recommendedTier;
+    }
+
+    private String selectedModelLabel() {
+        int modelIndex = spinnerModel.getSelectedItemPosition();
+        if (modelIndex >= 0 && modelIndex < availableModels.size()) {
+            return availableModels.get(modelIndex).label;
+        }
+        return "none";
     }
 
     private void copyFileCompat(File source, File target) throws IOException {
@@ -489,5 +533,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(transcriptionProgressUpdater);
+        handler.removeCallbacks(hardwarePanelUpdater);
     }
 }
