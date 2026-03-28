@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnSettings = findViewById(R.id.btnSettings);
         Button btnTabHome = findViewById(R.id.btnTabHome);
         Button btnTabFolder = findViewById(R.id.btnTabFolder);
+        Button btnTabSettings = findViewById(R.id.btnTabSettings);
 
         recommendedTier = ModelUtils.recommendModelTier(this);
         setupModelSpinner();
@@ -115,6 +116,7 @@ public class MainActivity extends AppCompatActivity {
         btnViewResults.setOnClickListener(v -> openResultsWindow());
         btnTabHome.setEnabled(false);
         btnTabFolder.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
+        btnTabSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         spinnerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {

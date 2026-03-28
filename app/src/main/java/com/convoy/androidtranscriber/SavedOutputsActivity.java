@@ -45,6 +45,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
         listOutputs = findViewById(R.id.listOutputs);
         Button btnTabHome = findViewById(R.id.btnTabHome);
         Button btnTabFolder = findViewById(R.id.btnTabFolder);
+        Button btnTabSettings = findViewById(R.id.btnTabSettings);
 
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_activated_1, filteredOutputs);
         listOutputs.setAdapter(adapter);
@@ -57,6 +58,7 @@ public class SavedOutputsActivity extends AppCompatActivity {
             finish();
         });
         btnTabFolder.setEnabled(false);
+        btnTabSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
 
         etSearch.addTextChangedListener(new SimpleTextWatcher() {
             @Override

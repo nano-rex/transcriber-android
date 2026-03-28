@@ -35,6 +35,9 @@ public class SettingsActivity extends AppCompatActivity {
         EditText etTrimMinutes = findViewById(R.id.etTrimMinutes);
         Button btnFolderSetup = findViewById(R.id.btnFolderSetup);
         Button btnManageModels = findViewById(R.id.btnManageModels);
+        Button btnTabHome = findViewById(R.id.btnTabHome);
+        Button btnTabFolder = findViewById(R.id.btnTabFolder);
+        Button btnTabSettings = findViewById(R.id.btnTabSettings);
 
         switchAiEnhance.setChecked(AppSettings.isAiEnhanceEnabled(this));
         switchTrim.setChecked(AppSettings.isTrimEnabled(this));
@@ -72,6 +75,14 @@ public class SettingsActivity extends AppCompatActivity {
         });
         btnFolderSetup.setOnClickListener(v -> showFolderModeDialog(tvFolderPath));
         btnManageModels.setOnClickListener(v -> startActivity(new Intent(this, ManageModelsActivity.class)));
+        btnTabHome.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            finish();
+        });
+        btnTabFolder.setOnClickListener(v -> startActivity(new Intent(this, SavedOutputsActivity.class)));
+        btnTabSettings.setEnabled(false);
     }
 
     private void refreshTrimControls(LinearLayout layoutTrimMinutes, TextView tvTrimRecommendation, boolean enabled) {
