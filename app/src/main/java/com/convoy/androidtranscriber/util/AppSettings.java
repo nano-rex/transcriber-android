@@ -7,6 +7,7 @@ public final class AppSettings {
     private static final String PREFS = "transcriber_settings";
     private static final String KEY_AI_ENHANCE = "ai_enhance_enabled";
     private static final String KEY_TRIM = "trim_enabled";
+    private static final String KEY_SELECTED_MODEL_ID = "selected_model_id";
 
     private AppSettings() {}
 
@@ -28,5 +29,13 @@ public final class AppSettings {
 
     public static void setTrimEnabled(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_TRIM, enabled).apply();
+    }
+
+    public static String getSelectedModelId(Context context) {
+        return prefs(context).getString(KEY_SELECTED_MODEL_ID, null);
+    }
+
+    public static void setSelectedModelId(Context context, String modelId) {
+        prefs(context).edit().putString(KEY_SELECTED_MODEL_ID, modelId).apply();
     }
 }

@@ -44,8 +44,8 @@ Java_com_convoy_androidtranscriber_engine_WhisperCppLib_fullTranscribe(
     params.print_timestamps = false;
     params.print_special = false;
     params.translate = false;
-    params.language = (language_chars && language_chars[0] != '\0') ? language_chars : NULL;
-    params.detect_language = (params.language == NULL);
+    params.language = (language_chars && language_chars[0] != '\0') ? language_chars : "en";
+    params.detect_language = false;
     params.n_threads = num_threads;
     params.offset_ms = 0;
     params.no_context = true;

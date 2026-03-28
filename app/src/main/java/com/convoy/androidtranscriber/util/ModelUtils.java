@@ -66,6 +66,26 @@ public final class ModelUtils {
         return !TINY_EN.equals(tier);
     }
 
+    public static String defaultLanguageForModel(ModelSpec spec) {
+        if (spec == null) return "en";
+        switch (spec.label) {
+            case TINY_EN:
+            case TINY:
+            case SMALL:
+                return "en";
+            case SMALL_MANDARIN:
+                return "zh";
+            case SMALL_MALAY:
+                return "ms";
+            case SMALL_CANTONESE:
+                return "yue";
+            case SMALL_HOKKIEN:
+                return "zh";
+            default:
+                return "en";
+        }
+    }
+
     public static File customModelsDir(Context context) {
         File dir = new File(context.getFilesDir(), "models-custom");
         if (!dir.exists()) dir.mkdirs();

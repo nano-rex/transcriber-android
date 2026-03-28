@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface WhisperEngine {
     boolean isInitialized();
-    boolean initialize(String modelPath, String vocabPath, boolean multilingual) throws IOException;
+    boolean initialize(String modelPath, String vocabPath, String languageHint) throws IOException;
     void deinitialize();
     String transcribeFile(String wavePath);
     String transcribeBuffer(float[] samples);

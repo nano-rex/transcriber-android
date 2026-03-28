@@ -103,6 +103,9 @@ public class MainActivity extends AppCompatActivity {
         spinnerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (position >= 0 && position < availableModels.size()) {
+                    AppSettings.setSelectedModelId(MainActivity.this, availableModels.get(position).id);
+                }
                 refreshHardwareStatus();
             }
 
@@ -166,13 +169,18 @@ public class MainActivity extends AppCompatActivity {
 
         List<String> labels = new ArrayList<>();
         int recommendedIndex = 0;
+        String savedModelId = AppSettings.getSelectedModelId(this);
         if (availableModels.isEmpty()) {
             labels.add("No model installed");
         }
         for (int i = 0; i < availableModels.size(); i++) {
             ModelSpec spec = availableModels.get(i);
             labels.add(spec.label + (spec.multilingual ? " [multilingual]" : " [english-only]"));
-            if (spec.tierHint().equals(recommendedTier)) recommendedIndex = i;
+            if (savedModelId != null && savedModelId.equals(spec.id)) {
+                recommendedIndex = i;
+            } else if (savedModelId == null && spec.tierHint().equals(recommendedTier)) {
+                recommendedIndex = i;
+            }
         }
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
@@ -269,7 +277,8 @@ public class MainActivity extends AppCompatActivity {
             try {
                 File modelFile = ensureModelFile(selectedModel);
                 whisper.unloadModel();
-                if (!whisper.loadModel(modelFile.getAbsolutePath(), "", selectedModel.multilingual)) {
+                String languageHint = ModelUtils.defaultLanguageForModel(selectedModel);
+                if (!whisper.loadModel(modelFile.getAbsolutePath(), "", languageHint)) {
                     throw new IllegalStateException(whisper.getLastError() == null
                             ? "Model initialization failed"
                             : whisper.getLastError());

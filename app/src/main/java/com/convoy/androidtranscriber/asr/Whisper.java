@@ -37,10 +37,10 @@ public class Whisper {
         this.listener = listener;
     }
 
-    public boolean loadModel(String modelPath, String vocabPath, boolean isMultilingual) {
+    public boolean loadModel(String modelPath, String vocabPath, String languageHint) {
         try {
             lastError = null;
-            whisperEngine.initialize(modelPath, vocabPath, isMultilingual);
+            whisperEngine.initialize(modelPath, vocabPath, languageHint);
             return true;
         } catch (IOException e) {
             Log.e(TAG, "Error initializing model", e);
