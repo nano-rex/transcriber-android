@@ -10,6 +10,7 @@ import java.nio.file.StandardCopyOption;
 
 public final class StorageUtils {
     private static final String APP_FOLDER = "TranscriberAndroid";
+    private static final String INTERNAL_FOLDER = "transcriber_private";
 
     private StorageUtils() {}
 
@@ -47,19 +48,19 @@ public final class StorageUtils {
     }
 
     public static File modelsDir(Context context) {
-        return childDir(context, "models");
+        return internalChildDir(context, "models");
     }
 
     public static File customModelsDir(Context context) {
-        return childDir(context, "models-custom");
+        return internalChildDir(context, "models-custom");
     }
 
     public static File denoiseDir(Context context) {
-        return childDir(context, "denoise");
+        return internalChildDir(context, "denoise");
     }
 
     public static File chunksDir(Context context) {
-        return childDir(context, "chunks");
+        return internalChildDir(context, "chunks");
     }
 
     public static String describeBaseDir(Context context) {
@@ -76,14 +77,40 @@ public final class StorageUtils {
         if (fromBase.getAbsolutePath().equals(toBase.getAbsolutePath())) return;
         if (!fromBase.exists()) return;
 
-        String[] children = new String[]{"outputs", "imports", "models", "models-custom", "denoise", "chunks"};
+        String[] children = new String[]{"outputs", "imports"};
         for (String child : children) {
             moveDirectoryContents(new File(fromBase, child), new File(toBase, child));
         }
     }
 
+    public static void migratePrivateWorkspaceToInternal(Context context) throws IOException {
+        String[] children = new String[]{"models", "models-custom", "denoise", "chunks"};
+        for (String mode : new String[]{AppSettings.STORAGE_DOCUMENTS, AppSettings.STORAGE_DOWNLOADS}) {
+            File legacyBase = baseDirForMode(context, mode);
+            for (String child : children) {
+                moveDirectoryContents(new File(legacyBase, child), new File(internalBaseDir(context), child));
+            }
+        }
+    }
+
     private static File childDir(Context context, String name) {
         File dir = new File(baseDir(context), name);
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    private static File internalBaseDir(Context context) {
+        File dir = new File(context.getFilesDir(), INTERNAL_FOLDER);
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    private static File internalChildDir(Context context, String name) {
+        try {
+            migratePrivateWorkspaceToInternal(context);
+        } catch (IOException ignored) {
+        }
+        File dir = new File(internalBaseDir(context), name);
         if (!dir.exists()) dir.mkdirs();
         return dir;
     }
