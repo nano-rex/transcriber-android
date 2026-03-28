@@ -83,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::onMediaPicked);
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        AppSettings.applyNightMode(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 

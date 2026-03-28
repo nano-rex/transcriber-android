@@ -35,6 +35,7 @@ public class ResultsActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        com.convoy.androidtranscriber.util.AppSettings.applyNightMode(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_results);
 

@@ -27,7 +27,6 @@ import java.util.Locale;
 public final class AudioImportUtil {
     private static final String TAG = "AudioImportUtil";
     private static final long TIMEOUT_US = 10000;
-    public static final int TRANSCRIBE_CHUNK_SECONDS = 300;
     private static final String AI_DENOISE_MODEL_ASSET = "denoise/std.rnnn";
 
     private AudioImportUtil() {}
@@ -408,7 +407,7 @@ public final class AudioImportUtil {
         if (samples.length == 0) return List.of(wavFile);
 
         int sampleRate = 16000;
-        int chunkSamples = TRANSCRIBE_CHUNK_SECONDS * sampleRate;
+        int chunkSamples = AppSettings.getTrimChunkMinutes(context) * 60 * sampleRate;
         if (samples.length <= chunkSamples) return List.of(wavFile);
 
         File chunksDir = StorageUtils.chunksDir(context);
