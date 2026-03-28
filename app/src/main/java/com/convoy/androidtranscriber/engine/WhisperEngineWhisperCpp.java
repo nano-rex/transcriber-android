@@ -12,6 +12,7 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
     private boolean initialized = false;
     private String languageHint = null;
     private final List<DiarizationUtils.TextSegment> lastSegments = new ArrayList<>();
+    private String lastError = null;
 
     @Override
     public boolean isInitialized() {
@@ -30,6 +31,7 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
         }
         languageHint = multilingual ? null : "en";
         initialized = true;
+        lastError = null;
         return true;
     }
 
@@ -42,6 +44,7 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
         initialized = false;
         languageHint = null;
         lastSegments.clear();
+        lastError = null;
     }
 
     @Override
@@ -54,10 +57,18 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
     public String transcribeBuffer(float[] samples) {
         if (!isInitialized() || samples == null || samples.length == 0) return "";
         lastSegments.clear();
+        lastError = null;
         int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
-        boolean ok = WhisperCppLib.fullTranscribe(contextPtr, threads, samples, languageHint);
-        if (!ok) return "";
+        int rc = WhisperCppLib.fullTranscribe(contextPtr, threads, samples, languageHint);
+        if (rc != 0) {
+            lastError = "whisper_full failed with status " + rc;
+            throw new IllegalStateException(lastError);
+        }
         int count = WhisperCppLib.getTextSegmentCount(contextPtr);
+        if (count <= 0) {
+            lastError = "No speech segments decoded";
+            throw new IllegalStateException(lastError);
+        }
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < count; i++) {
             String segment = WhisperCppLib.getTextSegment(contextPtr, i);
@@ -75,5 +86,9 @@ public class WhisperEngineWhisperCpp implements WhisperEngine {
     @Override
     public List<DiarizationUtils.TextSegment> getTextSegments() {
         return new ArrayList<>(lastSegments);
+    }
+
+    public String getLastError() {
+        return lastError;
     }
 }

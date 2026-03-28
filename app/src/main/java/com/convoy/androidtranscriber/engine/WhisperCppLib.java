@@ -25,7 +25,7 @@ public final class WhisperCppLib {
 
     public static native long initContext(String modelPath);
     public static native void freeContext(long contextPtr);
-    public static native boolean fullTranscribe(long contextPtr, int numThreads, float[] audioData, String languageHint);
+    public static native int fullTranscribe(long contextPtr, int numThreads, float[] audioData, String languageHint);
     public static native int getTextSegmentCount(long contextPtr);
     public static native String getTextSegment(long contextPtr, int index);
     public static native long getTextSegmentStartMs(long contextPtr, int index);

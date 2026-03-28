@@ -26,7 +26,7 @@ Java_com_convoy_androidtranscriber_engine_WhisperCppLib_freeContext(
     whisper_free(context);
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jint JNICALL
 Java_com_convoy_androidtranscriber_engine_WhisperCppLib_fullTranscribe(
         JNIEnv *env, jclass clazz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring language_hint) {
     UNUSED(clazz);
@@ -58,7 +58,7 @@ Java_com_convoy_androidtranscriber_engine_WhisperCppLib_fullTranscribe(
         (*env)->ReleaseStringUTFChars(env, language_hint, language_chars);
     }
     (*env)->ReleaseFloatArrayElements(env, audio_data, audio_data_arr, JNI_ABORT);
-    return rc == 0 ? JNI_TRUE : JNI_FALSE;
+    return rc;
 }
 
 JNIEXPORT jint JNICALL
